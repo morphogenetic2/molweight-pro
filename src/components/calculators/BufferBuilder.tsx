@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
-import { Trash2, Plus, Search, Loader2, Book, Save } from "lucide-react";
+import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
-import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw } from "@/lib/parser";
+import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
-import { debounce } from "lodash"; // I need to check if lodash is installed, or implement my own
 
 // Simple debounce helper since I didn't check for lodash
 function useDebounce<T>(value: T, delay: number): T {
@@ -18,7 +17,7 @@ function useDebounce<T>(value: T, delay: number): T {
     return debouncedValue;
 }
 
-function SoluteRow({ solute }: { solute: any }) {
+function SoluteRow({ solute, isChecklist, onToggleCheck }: { solute: any; isChecklist: boolean; onToggleCheck: (id: string) => void }) {
     const { bufferVolume, bufferUnit, removeSolute, updateSolute } = useStore();
     const [isSearching, setIsSearching] = useState(false);
 
@@ -164,48 +163,63 @@ function SoluteRow({ solute }: { solute: any }) {
     return (
         <tr className="group hover:bg-white/[0.02] transition-colors">
             <td className="px-6 py-4 align-top">
-                <div className="flex flex-col gap-1">
-                    <div className="relative flex items-center gap-2">
+                <div className="flex items-start gap-3">
+                    {isChecklist && (
                         <button
-                            onClick={handleExternalLookup}
-                            title="View on PubChem"
-                            className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
+                            onClick={() => onToggleCheck(solute.id)}
+                            className="mt-1 shrink-0 text-zinc-500 hover:text-emerald-400 transition-colors no-print"
                         >
-                            <Search className="h-3.5 w-3.5" />
+                            {solute.done ? <CheckSquare className="h-5 w-5 text-emerald-500" /> : <Square className="h-5 w-5" />}
                         </button>
-                        <div className="relative flex-1 flex items-center gap-2">
-                            {solute.isStock && (
-                                <>
-                                    <span className="shrink-0 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                                        Stock
-                                    </span>
-                                    {solute.stockConc && (
-                                        <span className="shrink-0 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold tracking-wider text-indigo-400">
-                                            {formatConcentration(solute.stockConc, solute.stockUnit)}{solute.stockUnit}
-                                        </span>
-                                    )}
-                                </>
-                            )}
-                            <input
-                                type="text"
-                                placeholder="Name/Formula"
-                                value={solute.name}
-                                onChange={(e) => updateSolute(solute.id, { name: e.target.value })}
-                                className="flex-1 bg-transparent border-transparent p-0 focus:ring-0 focus:border-indigo-500/50"
-                            />
-                            {isSearching && (
-                                <div className="absolute right-0 top-1/2 -translate-y-1/2">
-                                    <Loader2 className="h-3 w-3 animate-spin text-zinc-500" />
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {solute.formula && (
-                        <div className="pl-9">
-                            <FormulaBadge formula={solute.formula} className="self-start" />
-                        </div>
                     )}
+                    <span className="checkbox-print print-only" />
+                    <div className="flex flex-col gap-1 flex-1">
+                        <div className="relative flex items-center gap-2">
+                            <button
+                                onClick={handleExternalLookup}
+                                title="View on PubChem"
+                                className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
+                            >
+                                <Search className="h-3.5 w-3.5" />
+                            </button>
+                            <div className="relative flex-1 flex items-center gap-2">
+                                {solute.isStock && (
+                                    <>
+                                        <span className="shrink-0 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                                            Stock
+                                        </span>
+                                        {solute.stockConc && (
+                                            <span className="shrink-0 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold tracking-wider text-indigo-400">
+                                                {formatConcentration(solute.stockConc, solute.stockUnit)} {getUnitLabel(solute.stockUnit)}
+                                            </span>
+                                        )}
+                                    </>
+                                )}
+                                {isChecklist ? (
+                                    <span className="flex-1 py-0.5 font-bold text-zinc-300">{solute.name}</span>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        placeholder="Name/Formula"
+                                        value={solute.name}
+                                        onChange={(e) => updateSolute(solute.id, { name: e.target.value })}
+                                        className="flex-1 bg-transparent border-transparent p-0 focus:ring-0 focus:border-indigo-500/50"
+                                    />
+                                )}
+                                {isSearching && (
+                                    <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                                        <Loader2 className="h-3 w-3 animate-spin text-zinc-500" />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {solute.formula && (
+                            <div className="pl-9">
+                                <FormulaBadge formula={solute.formula} className="self-start" />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </td>
             <td className="px-6 py-4 align-top">
@@ -220,30 +234,38 @@ function SoluteRow({ solute }: { solute: any }) {
             </td>
             <td className="px-6 py-4 align-top">
                 <div className="flex items-center gap-2">
-                    <input
-                        type="number"
-                        value={solute.conc}
-                        disabled={solute.isStock}
-                        onChange={(e) => updateSolute(solute.id, { conc: e.target.value })}
-                        className={`w-20 bg-transparent border-transparent p-0 focus:ring-0 ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    />
-                    <select
-                        value={solute.unit}
-                        disabled={solute.isStock}
-                        onChange={(e) => updateSolute(solute.id, { unit: e.target.value })}
-                        className={`bg-transparent border-transparent p-0 focus:ring-0 text-sm text-zinc-400 ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                        <option value="M">M</option>
-                        <option value="mM">mM</option>
-                        <option value="μM">μM</option>
-                        <option value="μg/mL">μg/mL</option>
-                        <option value="ng/μL">ng/μL</option>
-                        <option value="mg/mL">mg/mL</option>
-                        <option value="mg/L">mg/L</option>
-                        <option value="g/L">g/L</option>
-                        <option value="pct">% (w/v)</option>
-                        <option value="dil">Dilution (X)</option>
-                    </select>
+                    {isChecklist ? (
+                        <span className="text-sm font-bold text-zinc-300">
+                            {formatConcentration(solute.conc, solute.unit)} {getUnitLabel(solute.unit)}
+                        </span>
+                    ) : (
+                        <>
+                            <input
+                                type="number"
+                                value={solute.conc}
+                                disabled={solute.isStock}
+                                onChange={(e) => updateSolute(solute.id, { conc: e.target.value })}
+                                className={`w-20 bg-transparent border-transparent p-0 focus:ring-0 ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            />
+                            <select
+                                value={solute.unit}
+                                disabled={solute.isStock}
+                                onChange={(e) => updateSolute(solute.id, { unit: e.target.value })}
+                                className={`bg-transparent border-transparent p-0 focus:ring-0 text-sm text-zinc-400 min-w-[90px] ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                                <option value="M">M</option>
+                                <option value="mM">mM</option>
+                                <option value="μM">μM</option>
+                                <option value="μg/mL">μg/mL</option>
+                                <option value="ng/μL">ng/μL</option>
+                                <option value="mg/mL">mg/mL</option>
+                                <option value="mg/L">mg/L</option>
+                                <option value="g/L">g/L</option>
+                                <option value="pct">% (w/v)</option>
+                                <option value="dil">Dilution (X)</option>
+                            </select>
+                        </>
+                    )}
                 </div>
             </td>
             <td className="px-6 py-4 text-right font-mono font-bold text-indigo-400 text-lg align-top">
@@ -265,11 +287,16 @@ export default function BufferBuilder() {
     const {
         bufferVolume, setBufferVolume,
         bufferUnit, setBufferUnit,
-        solutes, addSolute, clearSolutes,
+        solutes, addSolute, clearSolutes, updateSolute,
         setIsRecipeLibraryOpen, setIsSaveRecipeOpen
     } = useStore();
 
     const [confirmClear, setConfirmClear] = useState(false);
+    const [isChecklist, setIsChecklist] = useState(false);
+
+    const toggleCheck = useCallback((id: string) => {
+        updateSolute(id, { done: !solutes.find((s: any) => s.id === id)?.done });
+    }, [solutes, updateSolute]);
 
     return (
         <div className="space-y-6">
@@ -297,6 +324,17 @@ export default function BufferBuilder() {
 
                 <div className="flex-1 flex justify-end items-end gap-2">
                     <button
+                        onClick={() => setIsChecklist(!isChecklist)}
+                        className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 text-xs font-bold ${isChecklist
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                            : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white'
+                            }`}
+                        title="Preparation Checklist"
+                    >
+                        {isChecklist ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                        <span className="hidden sm:inline">Checklist</span>
+                    </button>
+                    <button
                         onClick={() => setIsRecipeLibraryOpen(true)}
                         className="p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 transition-all flex items-center gap-2 text-xs font-bold"
                         title="Browse Recipes"
@@ -307,7 +345,7 @@ export default function BufferBuilder() {
                     <button
                         onClick={() => setIsSaveRecipeOpen(true)}
                         disabled={solutes.length === 0}
-                        className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 transition-all flex items-center gap-2 text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all flex items-center gap-2 text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Save Recipe"
                     >
                         <Save className="h-4 w-4" />
@@ -328,8 +366,13 @@ export default function BufferBuilder() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                        {solutes.map((solute) => (
-                            <SoluteRow key={solute.id} solute={solute} />
+                        {solutes.map((solute: any) => (
+                            <SoluteRow
+                                key={solute.id}
+                                solute={solute}
+                                isChecklist={isChecklist}
+                                onToggleCheck={toggleCheck}
+                            />
                         ))}
                     </tbody>
                 </table>
@@ -383,9 +426,6 @@ export default function BufferBuilder() {
                         Clear Recipe
                     </button>
                 )}
-                <button className="primary flex items-center gap-2">
-                    Save Recipe
-                </button>
             </div>
         </div>
     );

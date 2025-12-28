@@ -37,6 +37,7 @@ interface AppState {
     addSolute: (data?: any) => void;
     updateSolute: (id: string, data: any) => void;
     clearSolutes: () => void;
+    activeRecipeName: string | null;
 
     // Recipe Library State
     savedRecipes: Recipe[];
@@ -90,6 +91,7 @@ export const useStore = create<AppState>()(
             bufferVolume: "100",
             bufferUnit: "mL",
             solutes: [],
+            activeRecipeName: null,
             setBufferVolume: (val) => set({ bufferVolume: val }),
             setBufferUnit: (unit) => set({ bufferUnit: unit }),
             addSolute: (initialData?: any) =>
@@ -114,7 +116,7 @@ export const useStore = create<AppState>()(
                 set((state) => ({
                     solutes: state.solutes.map((s) => (s.id === id ? { ...s, ...data } : s)),
                 })),
-            clearSolutes: () => set({ solutes: [] }),
+            clearSolutes: () => set({ solutes: [], activeRecipeName: null }),
 
             savedRecipes: [],
             saveRecipe: (name, description) => set((state) => ({
@@ -128,11 +130,14 @@ export const useStore = create<AppState>()(
                         totalUnit: state.bufferUnit,
                         solutes: state.solutes
                     }
-                ]
+                ],
+                isSaveRecipeOpen: false,
+                activeRecipeName: name
             })),
             loadRecipe: (recipe) => set({
                 bufferVolume: recipe.totalVolume,
                 bufferUnit: recipe.totalUnit,
+                activeRecipeName: recipe.name,
                 solutes: recipe.solutes.map(s => ({
                     ...s,
                     id: Math.random().toString(36).substr(2, 9)
@@ -169,6 +174,7 @@ export const useStore = create<AppState>()(
                     bufferVolume: "100",
                     bufferUnit: "mL",
                     solutes: [],
+                    activeRecipeName: null,
                 });
             },
         }),

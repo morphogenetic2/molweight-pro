@@ -1,5 +1,5 @@
 import { useStore } from "@/store/useStore";
-import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw } from "@/lib/parser";
+import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Loader2, Info, Plus, Check } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
@@ -211,7 +211,7 @@ export default function DilutionCalculator() {
                                 onChange={(e) => setDilution({ c1: e.target.value })}
                             />
                             <select
-                                className="w-24"
+                                className="w-32"
                                 value={dilution.u1}
                                 onChange={(e) => setDilution({ u1: e.target.value })}
                             >
@@ -242,7 +242,7 @@ export default function DilutionCalculator() {
                                 onChange={(e) => setDilution({ c2: e.target.value })}
                             />
                             <select
-                                className="w-24"
+                                className="w-32"
                                 value={dilution.u2}
                                 onChange={(e) => setDilution({ u2: e.target.value })}
                             >
@@ -291,7 +291,7 @@ export default function DilutionCalculator() {
                         {showVolumeWarning ? (
                             <div className="flex flex-col gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl max-w-sm">
                                 <p className="text-xs text-amber-200 leading-relaxed">
-                                    The volume of the buffer recipe ({bufferVolume}{bufferUnit}) is different from this dilution ({dilution.v2}{dilution.vu2}). Update the buffer volume to match?
+                                    The volume of the buffer recipe ({bufferVolume} {getUnitLabel(bufferUnit)}) is different from this dilution ({dilution.v2} {getUnitLabel(dilution.vu2)}). Update the buffer volume to match?
                                 </p>
                                 <div className="flex gap-2">
                                     <button
@@ -377,7 +377,7 @@ export default function DilutionCalculator() {
                             </div>
                         </div>
                         <div className="bg-white/5 px-6 py-4 text-center text-sm text-zinc-400 italic">
-                            Instructions: Take {formatVolume(results.v1)} of stock (at {formatConcentration(dilution.c1, dilution.u1)}{dilution.u1}) and add solvent until reaching {dilution.v2}{dilution.vu2} final volume.
+                            Instructions: Take {formatVolume(results.v1)} of stock (at {formatConcentration(dilution.c1, dilution.u1)} {getUnitLabel(dilution.u1)}) and add solvent until reaching {dilution.v2} {getUnitLabel(dilution.vu2)} final volume.
                         </div>
                     </motion.section>
                 ))}

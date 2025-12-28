@@ -12,3 +12,22 @@ export const PTABLE: Record<string, number> = {
     "Rf": 267, "Db": 270, "Sg": 271, "Bh": 270, "Hs": 277, "Mt": 276, "Ds": 281, "Rg": 280, "Cn": 285, "Nh": 284, "Fl": 289, "Mc": 288,
     "Lv": 293, "Ts": 294, "Og": 294
 };
+export const UNIT_LABELS: Record<string, string> = {
+    'M': 'M',
+    'mM': 'mM',
+    'μM': 'μM',
+    'uM': 'μM',
+    'μg/mL': 'μg/mL',
+    'ug/mL': 'μg/mL',
+    'ng/μL': 'ng/μL',
+    'ng/uL': 'ng/μL',
+    'mg/mL': 'mg/mL',
+    'mg/L': 'mg/L',
+    'g/L': 'g/L',
+    'pct': '%',
+    'dil': 'X',
+    'mL': 'mL',
+    'μL': 'μL',
+    'uL': 'μL',
+    'L': 'L'
+};

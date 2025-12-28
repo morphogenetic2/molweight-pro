@@ -1,4 +1,4 @@
-import { PTABLE } from "./constants";
+import { PTABLE, UNIT_LABELS } from "./constants";
 
 export type Composition = Record<string, number>;
 
@@ -100,6 +100,10 @@ export function formatFormula(formula: string): string {
 
 // Helper to trim trailing zeros after toFixed
 const trim = (val: number, precision: number) => parseFloat(val.toFixed(precision)).toString();
+
+export function getUnitLabel(unit: string): string {
+    return UNIT_LABELS[unit] || unit;
+}
 
 export function formatVolume(volL: number): string {
     if (volL < 1e-6) return trim(volL * 1e9, 1) + " nL";
