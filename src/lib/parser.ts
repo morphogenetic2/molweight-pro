@@ -98,16 +98,48 @@ export function formatFormula(formula: string): string {
     return formula.replace(/([A-Za-z)\]])(\d+)/g, "$1$2");
 }
 
+// Helper to trim trailing zeros after toFixed
+const trim = (val: number, precision: number) => parseFloat(val.toFixed(precision)).toString();
+
 export function formatVolume(volL: number): string {
-    if (volL < 1e-6) return (volL * 1e9).toFixed(1) + " nL";
-    if (volL < 1e-3) return (volL * 1e6).toFixed(1) + " μL";
-    if (volL < 1) return (volL * 1e3).toFixed(1) + " mL";
-    return volL.toFixed(3) + " L";
+    if (volL < 1e-6) return trim(volL * 1e9, 1) + " nL";
+    if (volL < 1e-3) return trim(volL * 1e6, 1) + " μL";
+    if (volL < 1) return trim(volL * 1e3, 3) + " mL";
+    return trim(volL, 3) + " L";
 }
 
 export function formatMass(grams: number): string {
-    if (grams < 1e-6) return (grams * 1e9).toFixed(1) + " ng";
-    if (grams < 1e-3) return (grams * 1e6).toFixed(1) + " μg";
-    if (grams < 1) return (grams * 1000).toFixed(1) + " mg";
-    return grams.toFixed(3) + " g";
+    if (grams < 1e-6) return trim(grams * 1e9, 1) + " ng";
+    if (grams < 1e-3) return trim(grams * 1e6, 1) + " μg";
+    if (grams < 1) return trim(grams * 1000, 1) + " mg";
+    return trim(grams, 3) + " g";
 }
+
+export function formatConcentration(val: number | string, unit: string): string {
+    const n = typeof val === 'string' ? parseFloat(val) : val;
+    if (isNaN(n)) return "-";
+
+    switch (unit) {
+        case 'M': return trim(n, 3);
+        case 'mM':
+        case 'μM':
+        case 'uM':
+        case 'mg/mL':
+        case 'dil':
+            return trim(n, 1);
+        case 'pct':
+        case 'μg/mL':
+        case 'ug/mL':
+        case 'ng/μL':
+        case 'ng/uL':
+            return trim(n, 2);
+        case 'g/L':
+            return trim(n, 3);
+        default:
+            return n.toString();
+    }
+}
+
+
+
+

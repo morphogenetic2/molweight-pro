@@ -41,7 +41,14 @@ export default function MWCalculator() {
             const res = await lookupPubChem(mwInput);
             if (res) {
                 const comp = parseFormula(res.formula!);
-                const result = { ...res, composition: comp };
+                // Create a clean, serializable object
+                const result = {
+                    mw: Number(res.mw),
+                    formula: String(res.formula),
+                    name: res.name ? String(res.name) : undefined,
+                    cid: res.cid ? Number(res.cid) : undefined,
+                    composition: comp
+                };
                 setMwResult(result as any);
                 addToHistory(result as any);
             } else {
@@ -59,16 +66,25 @@ export default function MWCalculator() {
             <section className="glass-card">
                 <form onSubmit={handleCalculate} className="space-y-4">
                     <div className="flex gap-3">
-                        <div className="relative flex-1">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
-                                <Search className="h-4 w-4" />
-                            </span>
+                        <button
+                            type="button"
+                            title="View on PubChem"
+                            onClick={() => {
+                                if (mwInput.trim()) {
+                                    window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(mwInput.trim())}`, "_blank");
+                                }
+                            }}
+                            className="shrink-0 p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
+                        >
+                            <Search className="h-4 w-4" />
+                        </button>
+                        <div className="relative flex-1 group">
                             <input
                                 type="text"
                                 value={mwInput}
                                 onChange={(e) => setMwInput(e.target.value)}
                                 placeholder="Enter chemical name (e.g. Aspirin) or formula (e.g. H2O)..."
-                                className="w-full pl-10"
+                                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none"
                             />
                         </div>
                         <button

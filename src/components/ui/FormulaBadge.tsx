@@ -8,7 +8,8 @@ interface FormulaBadgeProps {
 
 export function FormulaBadge({ formula, className }: FormulaBadgeProps) {
     // Use regex to find letters followed by numbers
-    const parts = formula.split(/(\d+)/);
+    // Regex to split by numbers and common hydrate separators
+    const parts = formula.split(/(\d+|[·*•.])/);
 
     return (
         <span className={cn(
@@ -16,7 +17,16 @@ export function FormulaBadge({ formula, className }: FormulaBadgeProps) {
             className
         )}>
             {parts.map((part, i) => {
+                if (!part) return null;
+
                 if (/^\d+$/.test(part)) {
+                    // It's a multiplier if it's the first part or follows a separator
+                    const prevPart = i > 0 ? parts[i - 1] : null;
+                    const isMultiplier = !prevPart || /^[·*•.]$/.test(prevPart);
+
+                    if (isMultiplier) {
+                        return <span key={i}>{part}</span>;
+                    }
                     return <sub key={i} className="bottom-[-0.2em] text-[0.8em]">{part}</sub>;
                 }
                 return <span key={i}>{part}</span>;

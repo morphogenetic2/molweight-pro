@@ -33,9 +33,10 @@ interface AppState {
     solutes: any[]; // To be typed properly later
     setBufferVolume: (val: string) => void;
     setBufferUnit: (unit: string) => void;
-    addSolute: () => void;
+    addSolute: (data?: any) => void;
     removeSolute: (id: string) => void;
     updateSolute: (id: string, data: any) => void;
+    clearSolutes: () => void;
 }
 
 export const useStore = create<AppState>()(
@@ -72,11 +73,18 @@ export const useStore = create<AppState>()(
             solutes: [],
             setBufferVolume: (val) => set({ bufferVolume: val }),
             setBufferUnit: (unit) => set({ bufferUnit: unit }),
-            addSolute: () =>
+            addSolute: (initialData?: any) =>
                 set((state) => ({
                     solutes: [
                         ...state.solutes,
-                        { id: Math.random().toString(36).substr(2, 9), name: "", mw: "", conc: "1", unit: "M" },
+                        {
+                            id: Math.random().toString(36).substr(2, 9),
+                            name: "",
+                            mw: "",
+                            conc: "1",
+                            unit: "M",
+                            ...initialData
+                        },
                     ],
                 })),
             removeSolute: (id) =>
@@ -87,6 +95,7 @@ export const useStore = create<AppState>()(
                 set((state) => ({
                     solutes: state.solutes.map((s) => (s.id === id ? { ...s, ...data } : s)),
                 })),
+            clearSolutes: () => set({ solutes: [] }),
         }),
         {
             name: "molweight-pro-storage",

@@ -42,6 +42,10 @@ select {
   @apply bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-hidden focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all;
 }
 
+option {
+  @apply bg-[#292929] text-white;
+}
+
 /* Hide number input arrows (spin buttons) */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {

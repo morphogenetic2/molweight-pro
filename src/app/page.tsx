@@ -64,7 +64,10 @@ export default function Home() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveTab(tab.id as "mw" | "dilution" | "buffer");
+                }}
                 className={cn(
                   "group relative flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all",
                   isActive
