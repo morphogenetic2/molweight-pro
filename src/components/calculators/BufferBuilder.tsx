@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
-import { Trash2, Plus, Search, Loader2 } from "lucide-react";
+import { Trash2, Plus, Search, Loader2, Book, Save } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
@@ -265,7 +265,8 @@ export default function BufferBuilder() {
     const {
         bufferVolume, setBufferVolume,
         bufferUnit, setBufferUnit,
-        solutes, addSolute, clearSolutes // Destructure clearSolutes
+        solutes, addSolute, clearSolutes,
+        setIsRecipeLibraryOpen, setIsSaveRecipeOpen
     } = useStore();
 
     const [confirmClear, setConfirmClear] = useState(false);
@@ -292,6 +293,26 @@ export default function BufferBuilder() {
                             <option>L</option>
                         </select>
                     </div>
+                </div>
+
+                <div className="flex-1 flex justify-end items-end gap-2">
+                    <button
+                        onClick={() => setIsRecipeLibraryOpen(true)}
+                        className="p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 transition-all flex items-center gap-2 text-xs font-bold"
+                        title="Browse Recipes"
+                    >
+                        <Book className="h-4 w-4" />
+                        <span className="hidden sm:inline">Library</span>
+                    </button>
+                    <button
+                        onClick={() => setIsSaveRecipeOpen(true)}
+                        disabled={solutes.length === 0}
+                        className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 transition-all flex items-center gap-2 text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Save Recipe"
+                    >
+                        <Save className="h-4 w-4" />
+                        <span className="hidden sm:inline">Save</span>
+                    </button>
                 </div>
             </div>
 

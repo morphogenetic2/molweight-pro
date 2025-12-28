@@ -21,6 +21,10 @@ import { useStore } from "@/store/useStore";
 import MWCalculator from "@/components/calculators/MWCalculator";
 import DilutionCalculator from "@/components/calculators/DilutionCalculator";
 import BufferBuilder from "@/components/calculators/BufferBuilder";
+import { HistoryPanel } from "@/components/ui/HistoryPanel";
+import { SettingsModal } from "@/components/ui/SettingsModal";
+import { RecipeLibrary } from "@/components/ui/RecipeLibrary";
+import { SaveRecipeModal } from "@/components/ui/SaveRecipeModal";
 
 const TABS = [
   { id: "mw", label: "Molecular Weight", icon: Table2 },
@@ -29,7 +33,11 @@ const TABS = [
 ] as const;
 
 export default function Home() {
-  const { activeTab, setActiveTab } = useStore();
+  const {
+    activeTab, setActiveTab,
+    setIsHistoryOpen, setIsSettingsOpen,
+    setIsRecipeLibraryOpen, setIsSaveRecipeOpen
+  } = useStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
@@ -117,11 +125,17 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="secondary flex items-center gap-2">
+            <button
+              onClick={() => setIsHistoryOpen(true)}
+              className="secondary flex items-center gap-2"
+            >
               <History className="h-4 w-4" />
               History
             </button>
-            <button className="primary flex items-center gap-2">
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="primary flex items-center gap-2"
+            >
               <Settings className="h-4 w-4" />
               Settings
             </button>
@@ -150,6 +164,11 @@ export default function Home() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      <HistoryPanel />
+      <SettingsModal />
+      <RecipeLibrary />
+      <SaveRecipeModal />
     </div>
   );
 }

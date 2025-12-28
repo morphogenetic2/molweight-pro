@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { ChemicalData } from "@/lib/parser";
+import { Recipe, DEFAULT_RECIPES } from "@/lib/recipes";
 
 interface AppState {
     activeTab: "mw" | "dilution" | "buffer";
@@ -34,9 +35,27 @@ interface AppState {
     setBufferVolume: (val: string) => void;
     setBufferUnit: (unit: string) => void;
     addSolute: (data?: any) => void;
-    removeSolute: (id: string) => void;
     updateSolute: (id: string, data: any) => void;
     clearSolutes: () => void;
+
+    // Recipe Library State
+    savedRecipes: Recipe[];
+    saveRecipe: (name: string, description: string) => void;
+    loadRecipe: (recipe: Recipe) => void;
+    deleteRecipe: (id: string) => void;
+
+    // UI State
+    isHistoryOpen: boolean;
+    setIsHistoryOpen: (val: boolean) => void;
+    isSettingsOpen: boolean;
+    setIsSettingsOpen: (val: boolean) => void;
+    isRecipeLibraryOpen: boolean;
+    setIsRecipeLibraryOpen: (val: boolean) => void;
+    isSaveRecipeOpen: boolean;
+    setIsSaveRecipeOpen: (val: boolean) => void;
+
+    // Actions
+    resetStore: () => void;
 }
 
 export const useStore = create<AppState>()(
@@ -96,9 +115,74 @@ export const useStore = create<AppState>()(
                     solutes: state.solutes.map((s) => (s.id === id ? { ...s, ...data } : s)),
                 })),
             clearSolutes: () => set({ solutes: [] }),
+
+            savedRecipes: [],
+            saveRecipe: (name, description) => set((state) => ({
+                savedRecipes: [
+                    ...state.savedRecipes,
+                    {
+                        id: Math.random().toString(36).substr(2, 9),
+                        name,
+                        description,
+                        totalVolume: state.bufferVolume,
+                        totalUnit: state.bufferUnit,
+                        solutes: state.solutes
+                    }
+                ]
+            })),
+            loadRecipe: (recipe) => set({
+                bufferVolume: recipe.totalVolume,
+                bufferUnit: recipe.totalUnit,
+                solutes: recipe.solutes.map(s => ({
+                    ...s,
+                    id: Math.random().toString(36).substr(2, 9)
+                }))
+            }),
+            deleteRecipe: (id) => set((state) => ({
+                savedRecipes: state.savedRecipes.filter(r => r.id !== id)
+            })),
+
+            isHistoryOpen: false,
+            setIsHistoryOpen: (val) => set({ isHistoryOpen: val }),
+            isSettingsOpen: false,
+            setIsSettingsOpen: (val) => set({ isSettingsOpen: val }),
+            isRecipeLibraryOpen: false,
+            setIsRecipeLibraryOpen: (val) => set({ isRecipeLibraryOpen: val }),
+            isSaveRecipeOpen: false,
+            setIsSaveRecipeOpen: (val) => set({ isSaveRecipeOpen: val }),
+
+            resetStore: () => {
+                set({
+                    mwInput: "",
+                    mwResult: null,
+                    history: [],
+                    dilution: {
+                        name: "",
+                        mw: 0,
+                        c1: "",
+                        u1: "M",
+                        c2: "",
+                        u2: "M",
+                        v2: "",
+                        vu2: "mL",
+                    },
+                    bufferVolume: "100",
+                    bufferUnit: "mL",
+                    solutes: [],
+                });
+            },
         }),
         {
             name: "molweight-pro-storage",
+            // Partial persistence: don't persist open states
+            partialize: (state) => {
+                const {
+                    isHistoryOpen, isSettingsOpen,
+                    isRecipeLibraryOpen, isSaveRecipeOpen,
+                    ...rest
+                } = state;
+                return rest;
+            },
         }
     )
 );
