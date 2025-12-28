@@ -36,6 +36,7 @@ interface AppState {
     setBufferUnit: (unit: string) => void;
     addSolute: (data?: any) => void;
     updateSolute: (id: string, data: any) => void;
+    removeSolute: (id: string) => void;
     clearSolutes: () => void;
     activeRecipeName: string | null;
 
