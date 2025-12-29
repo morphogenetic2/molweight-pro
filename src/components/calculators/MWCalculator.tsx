@@ -62,35 +62,37 @@ export default function MWCalculator() {
     };
 
     return (
-        <div className="space-y-6">
-            <section className="glass-card">
+        <div className="space-y-4 sm:space-y-6">
+            <section className="glass-card !p-4 sm:!p-6">
                 <form onSubmit={handleCalculate} className="space-y-4">
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
-                            title="View on PubChem"
-                            onClick={() => {
-                                if (mwInput.trim()) {
-                                    window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(mwInput.trim())}`, "_blank");
-                                }
-                            }}
-                            className="shrink-0 p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
-                        >
-                            <Search className="h-4 w-4" />
-                        </button>
-                        <div className="relative flex-1 group">
-                            <input
-                                type="text"
-                                value={mwInput}
-                                onChange={(e) => setMwInput(e.target.value)}
-                                placeholder="Enter chemical name (e.g. Aspirin) or formula (e.g. H2O)..."
-                                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none"
-                            />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex gap-2 flex-1">
+                            <button
+                                type="button"
+                                title="View on PubChem"
+                                onClick={() => {
+                                    if (mwInput.trim()) {
+                                        window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(mwInput.trim())}`, "_blank");
+                                    }
+                                }}
+                                className="shrink-0 p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
+                            >
+                                <Search className="h-4 w-4" />
+                            </button>
+                            <div className="relative flex-1 group">
+                                <input
+                                    type="text"
+                                    value={mwInput}
+                                    onChange={(e) => setMwInput(e.target.value)}
+                                    placeholder="Enter formula or name..."
+                                    className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none text-sm sm:text-base"
+                                />
+                            </div>
                         </div>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="primary flex items-center gap-2 min-w-[120px] justify-center"
+                            className="primary flex items-center gap-2 w-full sm:min-w-[120px] sm:w-auto justify-center"
                         >
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Calculate"}
                         </button>
@@ -105,33 +107,33 @@ export default function MWCalculator() {
             </section>
 
             {mwResult && (
-                <div className="grid gap-6 lg:grid-cols-2">
+                <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
                     {/* Result Summary */}
-                    <section className="glass-card flex flex-col items-center justify-center py-10 text-center">
-                        <span className="text-sm font-medium uppercase tracking-widest text-zinc-500">Molecular Weight</span>
-                        <div className="mt-2 text-6xl font-black text-white">
+                    <section className="glass-card flex flex-col items-center justify-center py-6 sm:py-10 text-center">
+                        <span className="text-[10px] sm:text-sm font-medium uppercase tracking-widest text-zinc-500">Molecular Weight</span>
+                        <div className="mt-2 text-4xl sm:text-5xl lg:text-6xl font-black text-white">
                             {mwResult.mw.toFixed(2)}
-                            <span className="ml-2 text-xl font-normal text-zinc-500">g/mol</span>
+                            <span className="ml-2 text-lg sm:text-xl font-normal text-zinc-500">g/mol</span>
                         </div>
                         <div className="mt-4">
-                            <FormulaBadge formula={mwResult.formula} className="text-base px-4 py-1" />
+                            <FormulaBadge formula={mwResult.formula} className="text-sm sm:text-base px-3 sm:px-4 py-1" />
                         </div>
                         {mwResult.name && (
-                            <p className="mt-4 text-lg font-medium text-zinc-300">{mwResult.name}</p>
+                            <p className="mt-4 text-base sm:text-lg font-medium text-zinc-300 px-4">{mwResult.name}</p>
                         )}
                     </section>
 
                     {/* Visualization or Details */}
                     <section className="glass-card overflow-hidden">
-                        <div className="flex h-full items-center justify-center p-4">
+                        <div className="flex h-full min-h-[200px] items-center justify-center p-4">
                             {mwResult.cid ? (
                                 <img
                                     src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${mwResult.cid}/PNG`}
                                     alt={mwResult.name || mwResult.formula}
-                                    className="max-h-64 object-contain brightness-110 contrast-125"
+                                    className="max-h-48 sm:max-h-64 object-contain brightness-110 contrast-125"
                                 />
                             ) : (
-                                <div className="text-center text-zinc-500 italic">
+                                <div className="text-center text-zinc-500 italic text-sm">
                                     No 2D structure available for manual formula input.
                                 </div>
                             )}

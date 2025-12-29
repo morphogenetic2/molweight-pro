@@ -186,17 +186,17 @@ export default function DilutionCalculator() {
     const results = calculateDilution();
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
+        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-8 pb-10">
             {/* Chemical Info Header */}
-            <section className="glass-card flex flex-wrap items-center gap-6 !py-4">
-                <div className="flex-1 min-w-[200px]">
-                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Chemical Component</label>
+            <section className="glass-card flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 !py-4">
+                <div className="w-full sm:flex-1">
+                    <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2">Chemical Component</label>
                     <div className="flex items-center gap-3">
                         <button
                             type="button"
                             onClick={handleExternalLookup}
                             title="View on PubChem"
-                            className="shrink-0 p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
+                            className="shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
                         >
                             <Search className="h-4 w-4" />
                         </button>
@@ -204,7 +204,7 @@ export default function DilutionCalculator() {
                             <input
                                 type="text"
                                 placeholder="Chemical Name or Formula"
-                                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none"
+                                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none text-sm"
                                 value={dilution.name}
                                 onChange={(e) => setDilution({ name: e.target.value })}
                             />
@@ -216,36 +216,36 @@ export default function DilutionCalculator() {
                         </div>
                     </div>
                 </div>
-                <div className="w-40">
-                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Molecular Weight</label>
+                <div className="w-full sm:w-40">
+                    <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2">Molecular Weight</label>
                     <div className="flex items-center gap-2">
                         <input
                             type="number"
                             placeholder="Mw"
-                            className="w-full"
+                            className="w-full text-sm"
                             value={dilution.mw || ""}
                             onChange={(e) => setDilution({ mw: parseFloat(e.target.value) || 0 })}
                         />
-                        <span className="text-zinc-500 text-xs font-mono">g/mol</span>
+                        <span className="text-zinc-500 text-[10px] sm:text-xs font-mono shrink-0">g/mol</span>
                     </div>
                 </div>
             </section>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
                 {/* Stock Solution */}
                 <section className="glass-card">
-                    <h3 className="text-lg font-semibold mb-4 text-indigo-400">Stock Solution (C1)</h3>
+                    <h3 className="text-base sm:text-lg font-semibold mb-4 text-indigo-400">Stock Solution (C1)</h3>
                     <div className="space-y-4">
                         <div className="flex gap-2">
                             <input
                                 type="number"
-                                placeholder="Concentration"
-                                className="flex-1"
+                                placeholder="Conc"
+                                className="flex-1 text-sm"
                                 value={dilution.c1}
                                 onChange={(e) => setDilution({ c1: e.target.value })}
                             />
                             <select
-                                className="w-32"
+                                className="w-24 sm:w-32 text-xs sm:text-sm"
                                 value={dilution.u1}
                                 onChange={(e) => setDilution({ u1: e.target.value })}
                             >
@@ -265,18 +265,18 @@ export default function DilutionCalculator() {
 
                 {/* Target Solution */}
                 <section className="glass-card border-indigo-500/20">
-                    <h3 className="text-lg font-semibold mb-4 text-emerald-400">Target Solution (C2, V2)</h3>
+                    <h3 className="text-base sm:text-lg font-semibold mb-4 text-emerald-400">Target Solution (C2, V2)</h3>
                     <div className="space-y-4">
                         <div className="flex gap-2">
                             <input
                                 type="number"
                                 placeholder="Target Conc (C2)"
-                                className="flex-1"
+                                className="flex-1 text-sm"
                                 value={dilution.c2}
                                 onChange={(e) => setDilution({ c2: e.target.value })}
                             />
                             <select
-                                className="w-32"
+                                className="w-24 sm:w-32 text-xs sm:text-sm"
                                 value={dilution.u2}
                                 onChange={(e) => setDilution({ u2: e.target.value })}
                             >
@@ -294,13 +294,13 @@ export default function DilutionCalculator() {
                         <div className="flex gap-2">
                             <input
                                 type="number"
-                                placeholder="Final Volume (V2)"
-                                className="flex-1"
+                                placeholder="Final Vol (V2)"
+                                className="flex-1 text-sm"
                                 value={dilution.v2}
                                 onChange={(e) => setDilution({ v2: e.target.value })}
                             />
                             <select
-                                className="w-24"
+                                className="w-20 sm:w-24 text-xs sm:text-sm"
                                 value={dilution.vu2}
                                 onChange={(e) => setDilution({ vu2: e.target.value })}
                             >
@@ -312,19 +312,19 @@ export default function DilutionCalculator() {
                     </div>
 
                     {/* Integration Buttons */}
-                    <div className="mt-6 flex flex-col gap-2 items-start">
+                    <div className="mt-6 flex flex-col gap-2 items-stretch sm:items-start">
                         <button
                             type="button"
                             disabled={solutes.length === 0}
                             onClick={() => setDilution({ v2: bufferVolume, vu2: bufferUnit })}
-                            className="text-xs py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-zinc-400 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="text-[10px] sm:text-xs py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-zinc-400 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center sm:justify-start gap-2"
                         >
-                            <Info className="h-3 w-3" />
+                            <Info className="h-3 w-3 shrink-0" />
                             Get Volume from recipe builder
                         </button>
                         {showVolumeWarning ? (
-                            <div className="flex flex-col gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl max-w-sm">
-                                <p className="text-xs text-amber-200 leading-relaxed">
+                            <div className="flex flex-col gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl w-full sm:max-w-sm">
+                                <p className="text-[10px] sm:text-xs text-amber-200 leading-relaxed">
                                     The volume of the buffer recipe ({bufferVolume} {getUnitLabel(bufferUnit)}) is different from this dilution ({dilution.v2} {getUnitLabel(dilution.vu2)}). Update the buffer volume to match?
                                 </p>
                                 <div className="flex gap-2">
@@ -335,13 +335,13 @@ export default function DilutionCalculator() {
                                             handleAddOrUpdate();
                                             setShowVolumeWarning(false);
                                         }}
-                                        className="flex-1 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-xs font-bold text-emerald-400 transition-all font-mono"
+                                        className="flex-1 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-[10px] sm:text-xs font-bold text-emerald-400 transition-all font-mono"
                                     >
                                         YES
                                     </button>
                                     <button
                                         onClick={() => setShowVolumeWarning(false)}
-                                        className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-bold text-zinc-400 transition-all"
+                                        className="flex-1 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] sm:text-xs font-bold text-zinc-400 transition-all"
                                     >
                                         NO
                                     </button>
@@ -357,7 +357,7 @@ export default function DilutionCalculator() {
                                         handleAddOrUpdate();
                                     }
                                 }}
-                                className={`text-xs py-2 px-3 border rounded-lg transition-all flex items-center gap-2 ${buttonState === "added"
+                                className={`text-[10px] sm:text-xs py-2 px-3 border rounded-lg transition-all flex items-center justify-center sm:justify-start gap-2 ${buttonState === "added"
                                     ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
                                     : buttonState === "update"
                                         ? 'bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30'
@@ -366,17 +366,17 @@ export default function DilutionCalculator() {
                             >
                                 {buttonState === "added" && (
                                     <>
-                                        <Check className="h-4 w-4" /> Added to Recipe
+                                        <Check className="h-4 w-4 shrink-0" /> Added to Recipe
                                     </>
                                 )}
                                 {buttonState === "update" && (
                                     <>
-                                        <ArrowRightLeft className="h-4 w-4" /> Update Recipe
+                                        <ArrowRightLeft className="h-4 w-4 shrink-0" /> Update Recipe
                                     </>
                                 )}
                                 {buttonState === "add" && (
                                     <>
-                                        <Plus className="h-4 w-4" /> Add to buffer recipe
+                                        <Plus className="h-4 w-4 shrink-0" /> Add to buffer recipe
                                     </>
                                 )}
                             </button>
@@ -391,9 +391,9 @@ export default function DilutionCalculator() {
                         key="error"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="glass-card border-red-500/20 bg-red-500/[0.02] flex items-center gap-3 text-red-400"
+                        className="glass-card border-red-500/20 bg-red-500/[0.02] flex items-center gap-3 text-red-400 text-sm"
                     >
-                        <Info className="h-5 w-5" />
+                        <Info className="h-5 w-5 shrink-0" />
                         {results.error}
                     </motion.div>
                 ) : (
@@ -402,23 +402,23 @@ export default function DilutionCalculator() {
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="glass-card overflow-hidden border-indigo-500/30"
+                        className="glass-card overflow-hidden border-indigo-500/30 !p-0"
                     >
-                        <div className="grid md:grid-cols-2 divide-x divide-white/5">
-                            <div className="p-8 text-center">
-                                <p className="text-zinc-500 text-sm uppercase tracking-widest font-bold mb-2">Volume of Stock (V1)</p>
-                                <p className="text-4xl font-black text-indigo-400 font-mono">
+                        <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/5">
+                            <div className="p-6 sm:p-8 text-center">
+                                <p className="text-zinc-500 text-[10px] sm:text-sm uppercase tracking-widest font-bold mb-2">Volume of Stock (V1)</p>
+                                <p className="text-3xl sm:text-4xl font-black text-indigo-400 font-mono">
                                     {formatVolume(results.v1)}
                                 </p>
                             </div>
-                            <div className="p-8 text-center">
-                                <p className="text-zinc-500 text-sm uppercase tracking-widest font-bold mb-2">Volume of Solvent</p>
-                                <p className="text-4xl font-black text-emerald-400 font-mono">
+                            <div className="p-6 sm:p-8 text-center">
+                                <p className="text-zinc-500 text-[10px] sm:text-sm uppercase tracking-widest font-bold mb-2">Volume of Solvent</p>
+                                <p className="text-3xl sm:text-4xl font-black text-emerald-400 font-mono">
                                     {formatVolume(results.solvent)}
                                 </p>
                             </div>
                         </div>
-                        <div className="bg-white/5 px-6 py-4 text-center text-sm text-zinc-400 italic">
+                        <div className="bg-white/5 px-4 sm:px-6 py-4 text-center text-[10px] sm:text-sm text-zinc-400 italic">
                             Instructions: Take {formatVolume(results.v1)} of stock (at {formatConcentration(dilution.c1, dilution.u1)} {getUnitLabel(dilution.u1)}) and add solvent until reaching {dilution.v2} {getUnitLabel(dilution.vu2)} final volume.
                         </div>
                     </motion.section>

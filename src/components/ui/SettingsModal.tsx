@@ -26,10 +26,10 @@ export function SettingsModal() {
                     exit={{ scale: 0.95, opacity: 0 }}
                     className="relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
                 >
-                    <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                    <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
                         <div className="flex items-center gap-3">
                             <SettingsIcon className="h-5 w-5 text-indigo-400" />
-                            <h2 className="text-xl font-bold italic tracking-tight">Settings</h2>
+                            <h2 className="text-lg sm:text-xl font-bold italic tracking-tight">Settings</h2>
                         </div>
                         <button
                             onClick={() => setIsSettingsOpen(false)}
@@ -39,18 +39,18 @@ export function SettingsModal() {
                         </button>
                     </div>
 
-                    <div className="p-8 space-y-8">
+                    <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 contents-scrollbar overflow-y-auto max-h-[calc(80vh-80px)]">
                         {/* Section: Data Management */}
                         <section>
                             <div className="flex items-center gap-2 mb-4 text-zinc-400">
                                 <Database className="h-4 w-4" />
                                 <h3 className="text-sm font-bold uppercase tracking-widest">Data Management</h3>
                             </div>
-                            <div className="glass-card p-6 border-white/5 bg-red-500/[0.02]">
-                                <div className="flex items-center justify-between gap-6">
+                            <div className="glass-card p-4 sm:p-6 border-white/5 bg-red-500/[0.02]">
+                                <div className="flex items-center justify-between gap-4 sm:gap-6">
                                     <div>
                                         <h4 className="font-bold text-white mb-1">Reset Application</h4>
-                                        <p className="text-xs text-zinc-500 leading-relaxed">
+                                        <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed">
                                             This will permanently clear all history, recipes, and calculator inputs. This action cannot be undone.
                                         </p>
                                     </div>

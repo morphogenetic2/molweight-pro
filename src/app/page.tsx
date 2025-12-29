@@ -50,14 +50,102 @@ export default function Home() {
         activeRecipeName
     } = useStore();
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    const closeMobileMenu = () => setMobileMenuOpen(false);
 
     return (
-        <div className="flex h-screen overflow-hidden bg-[#050505] text-white">
-            {/* Sidebar */}
+        <div className="flex h-screen overflow-hidden bg-[#050505] text-white relative">
+            {/* Mobile Header */}
+            <header className="lg:hidden absolute top-0 left-0 right-0 h-16 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md z-30 flex items-center justify-between px-4">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setActiveTab("home")}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 shadow-lg shadow-indigo-500/20"
+                    >
+                        <FlaskConical className="h-5 w-5" />
+                    </button>
+                    <span className="text-base font-bold tracking-tight">
+                        MolWeight <span className="text-indigo-500">Pro</span>
+                    </span>
+                </div>
+                <button
+                    onClick={() => setMobileMenuOpen(true)}
+                    className="p-2 rounded-lg bg-white/5 border border-white/10 text-zinc-400"
+                >
+                    <Menu className="h-5 w-5" />
+                </button>
+            </header>
+
+            {/* Mobile Sidebar Overlay */}
+            <AnimatePresence>
+                {mobileMenuOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={closeMobileMenu}
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+                        />
+                        <motion.aside
+                            initial={{ x: "-100%" }}
+                            animate={{ x: 0 }}
+                            exit={{ x: "-100%" }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="fixed inset-y-0 left-0 w-72 bg-[#0a0a0a] border-r border-white/5 z-50 lg:hidden flex flex-col"
+                        >
+                            <div className="flex h-20 items-center justify-between px-6 border-b border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600">
+                                        <FlaskConical className="h-5 w-5" />
+                                    </div>
+                                    <span className="text-lg font-bold">MolWeight</span>
+                                </div>
+                                <button onClick={closeMobileMenu} className="p-2 text-zinc-500">
+                                    <ChevronRight className="h-5 w-5 rotate-180" />
+                                </button>
+                            </div>
+                            <nav className="flex-1 space-y-2 p-4">
+                                <button
+                                    onClick={() => { setActiveTab("home"); closeMobileMenu(); }}
+                                    className={cn(
+                                        "flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all",
+                                        activeTab === "home" ? "bg-indigo-600/10 text-indigo-400" : "text-zinc-500"
+                                    )}
+                                >
+                                    <LayoutGrid className="h-5 w-5" />
+                                    <span>Dashboard</span>
+                                </button>
+                                <div className="my-2 border-t border-white/5" />
+                                {TABS.map((tab) => {
+                                    const Icon = tab.icon;
+                                    const isActive = activeTab === tab.id;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => { setActiveTab(tab.id as any); closeMobileMenu(); }}
+                                            className={cn(
+                                                "flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all",
+                                                isActive ? "bg-indigo-600/10 text-indigo-400" : "text-zinc-500"
+                                            )}
+                                        >
+                                            <Icon className="h-5 w-5" />
+                                            <span>{tab.label}</span>
+                                        </button>
+                                    );
+                                })}
+                            </nav>
+                        </motion.aside>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Desktop Sidebar */}
             <motion.aside
                 initial={false}
                 animate={{ width: sidebarOpen ? 280 : 80 }}
-                className="relative z-20 flex flex-col border-r border-white/5 bg-[#0a0a0a]"
+                className="relative z-20 hidden lg:flex flex-col border-r border-white/5 bg-[#0a0a0a]"
             >
                 <div className="flex h-20 items-center px-6">
                     <div className="flex items-center gap-3">
@@ -138,39 +226,39 @@ export default function Home() {
             </motion.aside>
 
             {/* Main Content */}
-            <main className="relative flex-1 overflow-y-auto p-8">
+            <main className="relative flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pt-20 lg:pt-8">
                 {/* Background Gradients */}
                 <div className="pointer-events-none absolute inset-0 overflow-hidden">
                     <div className="absolute -top-[10%] -left-[10%] h-[40%] w-[40%] rounded-full bg-indigo-600/10 blur-[120px]" />
                     <div className="absolute top-[20%] -right-[10%] h-[30%] w-[30%] rounded-full bg-blue-600/10 blur-[100px]" />
                 </div>
 
-                <header className="mb-10 flex items-center justify-between">
+                <header className="mb-6 lg:mb-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">
+                        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex flex-wrap items-center gap-2">
                             {activeTab === "home" ? "Dashboard" : TABS.find(t => t.id === activeTab)?.label}
                             {activeTab === "buffer_recipe" && activeRecipeName && (
-                                <span className="ml-3 inline-flex items-center rounded-full bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 text-sm font-medium text-indigo-400">
+                                <span className="inline-flex items-center rounded-full bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 text-xs sm:text-sm font-medium text-indigo-400">
                                     {activeRecipeName}
                                 </span>
                             )}
                         </h1>
-                        <p className="mt-1 text-zinc-500">
+                        <p className="mt-1 text-zinc-500 text-sm sm:text-base">
                             Small utilities for the lab
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                         <button
                             onClick={() => setIsHistoryOpen(true)}
-                            className="secondary flex items-center gap-2"
+                            className="secondary flex-1 sm:flex-none flex items-center justify-center gap-2 py-2 px-3 sm:px-4 text-sm"
                         >
                             <History className="h-4 w-4" />
                             History
                         </button>
                         <button
                             onClick={() => setIsSettingsOpen(true)}
-                            className="primary flex items-center gap-2"
+                            className="primary flex-1 sm:flex-none flex items-center justify-center gap-2 py-2 px-3 sm:px-4 text-sm"
                         >
                             <Settings className="h-4 w-4" />
                             Settings
@@ -187,30 +275,30 @@ export default function Home() {
                         transition={{ duration: 0.2 }}
                     >
                         {activeTab === "home" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto pt-10">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto pt-4 sm:pt-10 pb-10">
                                 {TABS.map((tab) => {
                                     const Icon = tab.icon;
                                     return (
                                         <button
                                             key={tab.id}
                                             onClick={() => setActiveTab(tab.id as any)}
-                                            className="group relative flex flex-col items-start p-8 rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-left group overflow-hidden"
+                                            className="group relative flex flex-col items-start p-6 sm:p-8 rounded-2xl sm:rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-left overflow-hidden"
                                         >
                                             <div className="absolute top-0 right-0 p-32 bg-indigo-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-colors" />
 
-                                            <div className="mb-6 p-4 rounded-2xl bg-white/5 border border-white/5 shadow-inner group-hover:scale-110 transition-transform duration-500">
-                                                <Icon className="h-8 w-8 text-indigo-400" />
+                                            <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white/5 border border-white/5 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                                                <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-400" />
                                             </div>
 
-                                            <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
+                                            <h3 className="text-lg sm:text-xl font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
                                                 {tab.label}
                                             </h3>
-                                            <p className="text-zinc-400 text-sm leading-relaxed max-w-xs">
+                                            <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed max-w-xs">
                                                 {tab.desc}
                                             </p>
 
-                                            <div className="absolute bottom-8 right-8 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-                                                <ChevronRight className="h-6 w-6 text-indigo-400" />
+                                            <div className="absolute bottom-6 sm:bottom-8 right-6 sm:right-8 opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                                                <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-400" />
                                             </div>
                                         </button>
                                     );

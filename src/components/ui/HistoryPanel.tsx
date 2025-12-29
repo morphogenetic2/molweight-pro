@@ -30,10 +30,10 @@ export function HistoryPanel() {
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
                 className="relative w-full max-w-md h-full bg-[#0a0a0a] border-l border-white/5 flex flex-col shadow-2xl"
             >
-                <div className="h-20 flex items-center justify-between px-8 border-b border-white/5">
+                <div className="h-16 sm:h-20 flex items-center justify-between px-6 sm:px-8 border-b border-white/5">
                     <div className="flex items-center gap-3">
                         <HistoryIcon className="h-5 w-5 text-indigo-400" />
-                        <h2 className="text-lg font-bold">History</h2>
+                        <h2 className="text-base sm:text-lg font-bold italic tracking-tight">History</h2>
                     </div>
                     <button
                         onClick={() => setIsHistoryOpen(false)}
@@ -43,7 +43,7 @@ export function HistoryPanel() {
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                     {history.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
                             <Clock className="h-12 w-12 text-zinc-700" />

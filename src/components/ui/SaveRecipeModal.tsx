@@ -37,10 +37,10 @@ export function SaveRecipeModal() {
                     exit={{ scale: 0.95, opacity: 0 }}
                     className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
                 >
-                    <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                    <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
                         <div className="flex items-center gap-3">
                             <Save className="h-5 w-5 text-indigo-400" />
-                            <h2 className="text-xl font-bold italic tracking-tight">Save Recipe</h2>
+                            <h2 className="text-lg sm:text-xl font-bold italic tracking-tight">Save Recipe</h2>
                         </div>
                         <button
                             onClick={() => setIsSaveRecipeOpen(false)}
@@ -50,7 +50,7 @@ export function SaveRecipeModal() {
                         </button>
                     </div>
 
-                    <div className="p-8 space-y-6">
+                    <div className="p-6 sm:p-8 space-y-6">
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 ml-1">
