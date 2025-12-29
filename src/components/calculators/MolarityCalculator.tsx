@@ -176,9 +176,17 @@ export default function MolarityCalculator() {
             {/* Quick Lookup */}
             <div className="space-y-4">
                 <div className="glass-card p-4 flex items-center gap-3">
-                    <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                    <button
+                        onClick={() => {
+                            if (searchTerm) {
+                                window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank');
+                            }
+                        }}
+                        title="Search on PubChem"
+                        className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors cursor-pointer"
+                    >
                         <Search className="h-5 w-5" />
-                    </div>
+                    </button>
                     <form onSubmit={handleLookup} className="flex-1 flex gap-2">
                         <input
                             value={searchTerm}
