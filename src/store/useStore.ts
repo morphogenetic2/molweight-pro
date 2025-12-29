@@ -4,8 +4,8 @@ import { ChemicalData } from "@/lib/parser";
 import { Recipe, DEFAULT_RECIPES } from "@/lib/recipes";
 
 interface AppState {
-    activeTab: "mw" | "dilution" | "buffer";
-    setActiveTab: (tab: "mw" | "dilution" | "buffer") => void;
+    activeTab: "home" | "mw" | "dilution" | "buffer_calc" | "buffer_recipe" | "molarity";
+    setActiveTab: (tab: "home" | "mw" | "dilution" | "buffer_calc" | "buffer_recipe" | "molarity") => void;
 
     // MW Calculator State
     mwInput: string;
@@ -38,7 +38,21 @@ interface AppState {
     updateSolute: (id: string, data: any) => void;
     removeSolute: (id: string) => void;
     clearSolutes: () => void;
+    clearSolutes: () => void;
     activeRecipeName: string | null;
+
+    // Molarity Calculator State
+    molarityState: {
+        mw: number;
+        mass: string;
+        volume: string;
+        concentration: string;
+        massUnit: string;
+        volUnit: string;
+        concUnit: string;
+        target: "mass" | "volume" | "concentration" | "mw";
+    };
+    setMolarityState: (data: Partial<AppState["molarityState"]>) => void;
 
     // Recipe Library State
     savedRecipes: Recipe[];
@@ -63,7 +77,7 @@ interface AppState {
 export const useStore = create<AppState>()(
     persist(
         (set) => ({
-            activeTab: "mw",
+            activeTab: "home",
             setActiveTab: (tab) => set({ activeTab: tab }),
 
             mwInput: "",
@@ -118,6 +132,19 @@ export const useStore = create<AppState>()(
                     solutes: state.solutes.map((s) => (s.id === id ? { ...s, ...data } : s)),
                 })),
             clearSolutes: () => set({ solutes: [], activeRecipeName: null }),
+
+            molarityState: {
+                mw: 0,
+                mass: "",
+                volume: "",
+                concentration: "",
+                massUnit: "g",
+                volUnit: "L",
+                concUnit: "M",
+                target: "mass"
+            },
+            setMolarityState: (data) =>
+                set((state) => ({ molarityState: { ...state.molarityState, ...data } })),
 
             savedRecipes: [],
             saveRecipe: (name, description) => set((state) => ({
@@ -176,6 +203,18 @@ export const useStore = create<AppState>()(
                     bufferUnit: "mL",
                     solutes: [],
                     activeRecipeName: null,
+                    solutes: [],
+                    activeRecipeName: null,
+                    molarityState: {
+                        mw: 0,
+                        mass: "",
+                        volume: "",
+                        concentration: "",
+                        massUnit: "g",
+                        volUnit: "L",
+                        concUnit: "M",
+                        target: "mass"
+                    }
                 });
             },
         }),

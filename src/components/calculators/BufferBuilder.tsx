@@ -167,12 +167,11 @@ function SoluteRow({ solute, isChecklist, onToggleCheck }: { solute: any; isChec
                     {isChecklist && (
                         <button
                             onClick={() => onToggleCheck(solute.id)}
-                            className="mt-1 shrink-0 text-zinc-500 hover:text-emerald-400 transition-colors no-print"
+                            className="mt-1 shrink-0 text-zinc-500 hover:text-emerald-400 transition-colors"
                         >
                             {solute.done ? <CheckSquare className="h-5 w-5 text-emerald-500" /> : <Square className="h-5 w-5" />}
                         </button>
                     )}
-                    <span className="checkbox-print print-only" />
                     <div className="flex flex-col gap-1 flex-1">
                         <div className="relative flex items-center gap-2">
                             <button
@@ -300,7 +299,7 @@ export default function BufferBuilder() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-wrap gap-4 items-end glass-card !p-4">
+            <div className="flex flex-wrap gap-4 items-end glass-card !p-4 no-print">
                 <div>
                     <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Total Solution Volume</label>
                     <div className="flex gap-2">
