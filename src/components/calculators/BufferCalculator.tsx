@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useStore } from "@/store/useStore"; // Assuming we might want to persist stocks here later, but for now using local state/local storage
+import { useStore } from "@/store/useStore";
 import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings2 } from "lucide-react";
 import { formatMass, formatVolume } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
