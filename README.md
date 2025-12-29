@@ -15,6 +15,7 @@
 *   **$C_1V_1 = C_2V_2$**: Effortlessly calculate required volumes for dilutions.
 *   **Unit Conversion**: Auto-converts between various units (mM, µM, mL, L) so you don't have to doing mental math.
 *   **MW Input**: Easily import molecular weights from the MW Calculator.
+*   **Linked Solute**: Automatically updates the solute when you change the dilution.
 
 ### 📐 Molarity Triangle
 *   **Solve for Any Variable**: Calculate Mass, Concentration, or Volume by locking the target field.
