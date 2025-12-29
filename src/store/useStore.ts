@@ -38,7 +38,7 @@ interface AppState {
     updateSolute: (id: string, data: any) => void;
     removeSolute: (id: string) => void;
     clearSolutes: () => void;
-    clearSolutes: () => void;
+
     activeRecipeName: string | null;
 
     // Molarity Calculator State
@@ -203,8 +203,7 @@ export const useStore = create<AppState>()(
                     bufferUnit: "mL",
                     solutes: [],
                     activeRecipeName: null,
-                    solutes: [],
-                    activeRecipeName: null,
+
                     molarityState: {
                         mw: 0,
                         mass: "",
