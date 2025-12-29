@@ -156,7 +156,7 @@ export default function Home() {
                             )}
                         </h1>
                         <p className="mt-1 text-zinc-500">
-                            Professional chemical tools for precision laboratory work.
+                            Small utilities for the lab
                         </p>
                     </div>
 

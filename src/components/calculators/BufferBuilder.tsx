@@ -357,8 +357,8 @@ export default function BufferBuilder() {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-white/5 text-zinc-400 text-xs font-bold uppercase tracking-wider">
-                            <th className="px-6 py-4">Chemical Component</th>
-                            <th className="px-6 py-4">MW</th>
+                            <th className="px-6 py-4">Reagent</th>
+                            <th className="px-6 py-4">MW (g/mol)</th>
                             <th className="px-6 py-4">Target Concentration</th>
                             <th className="px-6 py-4 text-right">Required Amount</th>
                             <th className="px-6 py-4 w-16"></th>
