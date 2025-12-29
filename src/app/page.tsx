@@ -36,7 +36,7 @@ import { SaveRecipeModal } from "@/components/ui/SaveRecipeModal";
 const TABS = [
     { id: "mw", label: "Molecular Weight", icon: Table2, desc: "Calculate molar mass from chemical formulas and PubChem lookup" },
     { id: "dilution", label: "Dilution Calculator", icon: Pipette, desc: "C₁V₁ = C₂V₂ calculations for solution preparation" },
-    { id: "molarity", label: "Molarity Triangle", icon: Scale, desc: "Solve for Mass, Volume, or Concentration (Mass = C * V * MW)" },
+    { id: "molarity", label: "Molarity Triangle", icon: Scale, desc: "Solve for Mass, Volume, or Concentration" },
 
     { id: "buffer_calc", label: "Buffer Calculator", icon: Calculator, desc: "Recipes for common biological buffers (Tris, PBS)" },
     { id: "buffer_recipe", label: "Recipe Builder", icon: FlaskConical, desc: "Build and save custom solution recipes" },
