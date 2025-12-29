@@ -2,7 +2,7 @@
 
 **MolWeight Pro** is a comprehensive suite of digital tools designed for molecular biologists and chemists. It streamlines common laboratory calculations into a single, beautiful, and offline-capable interface.
 
-![MolWeight Pro public instance](https://molweightpro.vercel.app)
+[MolWeight Pro public instance](https://molweightpro.vercel.app)
 
 ## Features
 
