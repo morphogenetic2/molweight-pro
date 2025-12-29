@@ -1,7 +1,7 @@
 import { useStore } from "@/store/useStore";
 import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Loader2, Info, Plus, Check } from "lucide-react";
+import { Search, Loader2, Info, Plus, Check, ArrowRightLeft } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { useState, useEffect } from "react";
@@ -19,25 +19,59 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function DilutionCalculator() {
     const {
         dilution, setDilution,
-        bufferVolume, bufferUnit, solutes, addSolute,
+        bufferVolume, bufferUnit, solutes, addSolute, updateSolute,
         setBufferVolume, setBufferUnit
     } = useStore();
     const [isSearching, setIsSearching] = useState(false);
-    const [addedToBuffer, setAddedToBuffer] = useState(false);
     const [showVolumeWarning, setShowVolumeWarning] = useState(false);
 
-    const handleAddToBuffer = () => {
-        addSolute({
-            name: dilution.name,
-            mw: dilution.mw > 0 ? dilution.mw.toString() : "",
-            conc: dilution.c2,
-            unit: dilution.u2,
-            isStock: true,
-            stockConc: dilution.c1,
-            stockUnit: dilution.u1
-        });
-        setAddedToBuffer(true);
-        setTimeout(() => setAddedToBuffer(false), 2000);
+    // Track the ID of the solute we just added (PERSISTED in store now)
+    const linkedSoluteId = dilution.linkedSoluteId;
+
+    // Derived state: Check status of the added solute
+    const addedSolute = solutes.find(s => s.id === linkedSoluteId);
+
+    // Check if the current dilution state matches the saved solute
+    const isDirty = addedSolute ? (
+        addedSolute.conc !== dilution.c2 ||
+        addedSolute.unit !== dilution.u2 ||
+        addedSolute.stockConc !== dilution.c1 ||
+        addedSolute.stockUnit !== dilution.u1 ||
+        addedSolute.name !== dilution.name
+    ) : false;
+
+    // Button State: 
+    // - "add": Not added yet, or added but then removed from list
+    // - "added": Added and matches current state
+    // - "update": Added but current state is different (dirty)
+    const buttonState = !addedSolute ? "add" : (isDirty ? "update" : "added");
+
+    const handleAddOrUpdate = () => {
+        if (buttonState === "add") {
+            // Generate ID locally so we can track it
+            const newId = Math.random().toString(36).substr(2, 9);
+            addSolute({
+                id: newId,
+                name: dilution.name,
+                mw: dilution.mw > 0 ? dilution.mw.toString() : "",
+                conc: dilution.c2,
+                unit: dilution.u2,
+                isStock: true,
+                stockConc: dilution.c1,
+                stockUnit: dilution.u1
+            });
+            // Persist the link
+            setDilution({ linkedSoluteId: newId });
+        } else if (buttonState === "update" && linkedSoluteId) {
+            updateSolute(linkedSoluteId, {
+                name: dilution.name,
+                mw: dilution.mw > 0 ? dilution.mw.toString() : "",
+                conc: dilution.c2,
+                unit: dilution.u2,
+                stockConc: dilution.c1,
+                stockUnit: dilution.u1
+            });
+        }
     };
 
     const debouncedName = useDebounce(dilution.name, 600);
@@ -298,7 +332,7 @@ export default function DilutionCalculator() {
                                         onClick={() => {
                                             setBufferVolume(dilution.v2);
                                             setBufferUnit(dilution.vu2);
-                                            handleAddToBuffer();
+                                            handleAddOrUpdate();
                                             setShowVolumeWarning(false);
                                         }}
                                         className="flex-1 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-xs font-bold text-emerald-400 transition-all font-mono"
@@ -317,22 +351,30 @@ export default function DilutionCalculator() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    if (dilution.v2 !== bufferVolume || dilution.vu2 !== bufferUnit) {
+                                    if (buttonState === "add" && (dilution.v2 !== bufferVolume || dilution.vu2 !== bufferUnit)) {
                                         setShowVolumeWarning(true);
                                     } else {
-                                        handleAddToBuffer();
+                                        handleAddOrUpdate();
                                     }
                                 }}
-                                className={`text-xs py-2 px-3 border rounded-lg transition-all flex items-center gap-2 ${addedToBuffer
+                                className={`text-xs py-2 px-3 border rounded-lg transition-all flex items-center gap-2 ${buttonState === "added"
                                     ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
-                                    : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/20 text-indigo-400 hover:text-indigo-300'
+                                    : buttonState === "update"
+                                        ? 'bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30'
+                                        : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/20 text-indigo-400 hover:text-indigo-300'
                                     }`}
                             >
-                                {addedToBuffer ? (
+                                {buttonState === "added" && (
                                     <>
                                         <Check className="h-4 w-4" /> Added to Recipe
                                     </>
-                                ) : (
+                                )}
+                                {buttonState === "update" && (
+                                    <>
+                                        <ArrowRightLeft className="h-4 w-4" /> Update Recipe
+                                    </>
+                                )}
+                                {buttonState === "add" && (
                                     <>
                                         <Plus className="h-4 w-4" /> Add to buffer recipe
                                     </>

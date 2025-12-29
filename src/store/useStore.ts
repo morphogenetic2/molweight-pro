@@ -25,6 +25,7 @@ interface AppState {
         u2: string;
         v2: string;
         vu2: string;
+        linkedSoluteId: string | null;
     };
     setDilution: (data: Partial<AppState["dilution"]>) => void;
 
@@ -99,6 +100,7 @@ export const useStore = create<AppState>()(
                 u2: "M",
                 v2: "",
                 vu2: "mL",
+                linkedSoluteId: null,
             },
             setDilution: (data) =>
                 set((state) => ({ dilution: { ...state.dilution, ...data } })),
@@ -198,6 +200,7 @@ export const useStore = create<AppState>()(
                         u2: "M",
                         v2: "",
                         vu2: "mL",
+                        linkedSoluteId: null,
                     },
                     bufferVolume: "100",
                     bufferUnit: "mL",
