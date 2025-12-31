@@ -1,3 +1,24 @@
+/**
+ * @file recipes.ts
+ * @description Predefined buffer recipes and recipe data structures.
+ * Contains common laboratory buffer formulations (PBS, TAE, TBE, RIPA, etc.)
+ * @module lib/recipes
+ * @version 1.0.0
+ * @since 2025-01-01
+ */
+
+/**
+ * Represents a solute component in a buffer recipe.
+ *
+ * @interface RecipeSolute
+ * @property {string} name - Chemical name of the solute
+ * @property {string} mw - Molecular weight in g/mol (as string for form compatibility)
+ * @property {string} conc - Target concentration (as string for form compatibility)
+ * @property {string} unit - Concentration unit (e.g., "M", "mM", "pct")
+ * @property {boolean} [isStock] - Whether this solute is from a stock solution
+ * @property {string} [stockConc] - Stock solution concentration (if isStock is true)
+ * @property {string} [stockUnit] - Stock solution unit (if isStock is true)
+ */
 export interface RecipeSolute {
     name: string;
     mw: string;
@@ -8,6 +29,17 @@ export interface RecipeSolute {
     stockUnit?: string;
 }
 
+/**
+ * Represents a complete buffer recipe with metadata and solute list.
+ *
+ * @interface Recipe
+ * @property {string} id - Unique identifier for the recipe
+ * @property {string} name - Display name of the buffer (e.g., "PBS (10X)")
+ * @property {string} description - Brief description of buffer purpose and use case
+ * @property {string} totalVolume - Total volume to prepare (as string for form compatibility)
+ * @property {string} totalUnit - Volume unit (e.g., "mL", "L")
+ * @property {RecipeSolute[]} solutes - Array of solute components in the recipe
+ */
 export interface Recipe {
     id: string;
     name: string;
@@ -17,6 +49,22 @@ export interface Recipe {
     solutes: RecipeSolute[];
 }
 
+/**
+ * Predefined Laboratory Buffer Recipes
+ *
+ * Collection of commonly used buffer formulations in molecular biology and biochemistry.
+ * Includes standard buffers like PBS, TAE, TBE, RIPA, and others with accurate concentrations.
+ *
+ * Each recipe contains:
+ * - Buffer name and description
+ * - Total volume and unit
+ * - Complete solute list with molecular weights and concentrations
+ * - Stock solution information where applicable
+ *
+ * @constant
+ * @type {Recipe[]}
+ * @since 1.0.0
+ */
 export const DEFAULT_RECIPES: Recipe[] = [
     {
         id: "pbs-10x",

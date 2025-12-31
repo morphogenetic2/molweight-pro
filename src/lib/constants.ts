@@ -1,3 +1,23 @@
+/**
+ * @file constants.ts
+ * @description Chemical constants including periodic table and unit label mappings.
+ * Contains IUPAC standard atomic weights and supported unit definitions.
+ * @module lib/constants
+ * @version 1.0.0
+ * @since 2025-01-01
+ */
+
+/**
+ * Periodic Table of Elements
+ *
+ * Maps element symbols to standard atomic weights in g/mol.
+ * Data source: IUPAC 2021 standard atomic weights for naturally occurring elements.
+ *
+ * @constant
+ * @type {Record<string, number>}
+ * @see https://iupac.org/what-we-do/periodic-table-of-elements/
+ * @since 1.0.0
+ */
 export const PTABLE: Record<string, number> = {
     "H": 1.008, "He": 4.0026, "Li": 6.94, "Be": 9.0122, "B": 10.81, "C": 12.011, "N": 14.007, "O": 15.999, "F": 18.998, "Ne": 20.180,
     "Na": 22.990, "Mg": 24.305, "Al": 26.982, "Si": 28.085, "P": 30.974, "S": 32.06, "Cl": 35.45, "Ar": 39.948, "K": 39.098, "Ca": 40.078,
@@ -12,6 +32,17 @@ export const PTABLE: Record<string, number> = {
     "Rf": 267, "Db": 270, "Sg": 271, "Bh": 270, "Hs": 277, "Mt": 276, "Ds": 281, "Rg": 280, "Cn": 285, "Nh": 284, "Fl": 289, "Mc": 288,
     "Lv": 293, "Ts": 294, "Og": 294
 };
+
+/**
+ * Unit Label Mappings
+ *
+ * Maps unit abbreviations to their display labels for concentration and volume units.
+ * Handles both standard and alternative notations (e.g., "μM" and "uM" both map to "μM").
+ *
+ * @constant
+ * @type {Record<string, string>}
+ * @since 1.0.0
+ */
 export const UNIT_LABELS: Record<string, string> = {
     'M': 'M',
     'mM': 'mM',
