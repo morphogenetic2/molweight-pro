@@ -14,7 +14,7 @@ import { useState } from "react";
 import { Search, Loader2, AlertCircle, Download } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { parseFormula, calculateMw } from "@/lib/parser";
-import { lookupPubChem } from "@/lib/api";
+import { lookupPubChem, lookupPubChemByFormula } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 
 /**
@@ -67,10 +67,15 @@ export default function MWCalculator() {
                 try {
                     const comp = parseFormula(mwInput);
                     const mw = calculateMw(comp);
+
+                    // Fetch CID for 2D structure visualization
+                    const cid = await lookupPubChemByFormula(mwInput);
+
                     const result = {
                         mw,
                         formula: mwInput,
                         composition: comp,
+                        cid: cid || undefined,
                     };
                     setMwResult(result as any);
                     addToHistory(result as any);

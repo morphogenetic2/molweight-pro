@@ -10,6 +10,62 @@
 import { ChemicalData } from "./parser";
 
 /**
+ * Queries PubChem database for a compound ID (CID) by molecular formula.
+ *
+ * Searches PubChem for compounds matching the given molecular formula and returns
+ * the first matching CID. This enables 2D structure visualization for manually
+ * entered chemical formulas.
+ *
+ * @async
+ * @param {string} formula - Molecular formula (e.g., "H2O", "C6H12O6", "NaCl")
+ * @returns {Promise<number | null>} PubChem Compound ID or null if not found
+ *
+ * @example
+ * // Successful lookup
+ * const cid = await lookupPubChemByFormula("H2O");
+ * // Returns: 962 (CID for water)
+ *
+ * @example
+ * // Failed lookup (invalid formula)
+ * const cid = await lookupPubChemByFormula("XYZ123");
+ * // Returns: null
+ *
+ * @throws Never throws - returns null on all errors
+ * @see https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest
+ * @since 1.0.0
+ */
+export async function lookupPubChemByFormula(formula: string): Promise<number | null> {
+    try {
+        // Search for CID by molecular formula
+        const searchRes = await fetch(
+            `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/formula/${encodeURIComponent(formula)}/cids/JSON`
+        );
+
+        // 404 = formula not found, not an error condition
+        if (!searchRes.ok) {
+            console.warn(`PubChem: Formula "${formula}" not found (HTTP ${searchRes.status})`);
+            return null;
+        }
+
+        const searchData = await searchRes.json();
+
+        // Validate response structure and return first CID
+        if (!searchData?.IdentifierList?.CID || searchData.IdentifierList.CID.length === 0) {
+            console.warn(`PubChem: No CID found for formula "${formula}"`);
+            return null;
+        }
+
+        // Return the first CID (most common compound with this formula)
+        const cid = searchData.IdentifierList.CID[0];
+        return cid || null;
+    } catch (error) {
+        // Log error for debugging but return null for graceful degradation
+        console.error("PubChem formula lookup error:", error);
+        return null;
+    }
+}
+
+/**
  * Queries PubChem database for chemical information by name or identifier.
  *
  * Performs a three-step API call sequence:
