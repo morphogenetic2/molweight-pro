@@ -67,6 +67,7 @@ next-env.d.ts
 .settings/
 *.sublime-workspace
 .history/
+.claude/
 
 # OS files
 .DS_Store
