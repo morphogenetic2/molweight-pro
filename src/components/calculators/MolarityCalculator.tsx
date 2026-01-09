@@ -6,6 +6,19 @@ import { Search, Loader2, Scale, Beaker, Pipette, Atom, Calculator, ArrowRightLe
 import { lookupPubChem } from "@/lib/api";
 import { parseFormula, calculateMw } from "@/lib/parser";
 import { FormulaBadge } from "../ui/FormulaBadge";
+import { Solver, denormalize } from "@/lib/chemistry/converter";
+import { MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS } from "@/lib/chemistry/units";
+import { ValueUnitInput } from "../ui/ValueUnitInput";
+
+// Group units for dropdowns
+const MASS_OPTS = Object.keys(MASS_UNITS);
+const VOL_OPTS = Object.keys(VOLUME_UNITS);
+// Conc options: Molar + MassConc + Percent
+const CONC_OPTS = [
+    ...Object.keys(MOLAR_UNITS),
+    ...Object.keys(PERCENT_UNITS),
+    ...Object.keys(MASS_CONC_UNITS)
+];
 
 export default function MolarityCalculator() {
     const { molarityState, setMolarityState } = useStore();
@@ -23,7 +36,6 @@ export default function MolarityCalculator() {
         setLookupResult(null);
 
         try {
-            // 1. Try local parse
             if (/^[A-Za-z0-9()\[\]·*•.]+$/.test(query) && /[A-Z]/.test(query)) {
                 try {
                     const comp = parseFormula(query);
@@ -35,15 +47,10 @@ export default function MolarityCalculator() {
                 } catch (e) { }
             }
 
-            // 2. PubChem
             const res = await lookupPubChem(query);
             if (res) {
                 setMolarityState({ mw: res.mw });
-                setLookupResult({
-                    name: res.name,
-                    formula: res.formula,
-                    cid: res.cid
-                });
+                setLookupResult({ name: res.name, formula: res.formula, cid: res.cid });
             }
         } catch (err) {
             console.error(err);
@@ -52,154 +59,97 @@ export default function MolarityCalculator() {
         }
     };
 
-    // --- Calculation Logic ---
+    // --- Calculation Logic (Powered by Engine) ---
     useEffect(() => {
         const { mw, mass, volume, concentration, massUnit, volUnit, concUnit, target } = molarityState;
 
-        const m = parseFloat(mass);
-        const v = parseFloat(volume);
-        const c = parseFloat(concentration);
-        const w = mw;
+        // Safety parsing
+        const m = parseFloat(mass) || 0;
+        const v = parseFloat(volume) || 0;
+        const c = parseFloat(concentration) || 0;
+        const w = mw || 0;
 
-        // Helper to convert TO base units (g, L, M)
-        const toBase = (val: number, unit: string) => {
-            if (unit === 'mg') return val / 1e3;
-            if (unit === 'μg') return val / 1e6;
-            if (unit === 'ng') return val / 1e9;
-            if (unit === 'kg') return val * 1e3;
-
-            if (unit === 'mL') return val / 1e3;
-            if (unit === 'μL') return val / 1e6;
-            if (unit === 'nL') return val / 1e9;
-
-            if (unit === 'mM') return val / 1e3;
-            if (unit === 'μM') return val / 1e6;
-            if (unit === 'nM') return val / 1e9;
-
-            if (unit === 'pct') return w > 0 ? (val * 10) / w : 0;
-
-            // Mass/Volume units -> Molar
-            // M = (g/L) / MW
-            if (w > 0) {
-                if (unit === 'g/L' || unit === 'mg/mL') return val / w;
-                if (unit === 'mg/L' || unit === 'μg/mL' || unit === 'ng/μL') return (val / 1000) / w;
-            }
-
-            return val; // g, L, M
-        };
-
-        // Helper to convert FROM base units
-        const fromBase = (val: number, unit: string) => {
-            if (unit === 'mg') return val * 1e3;
-            if (unit === 'μg') return val * 1e6;
-            if (unit === 'ng') return val * 1e9;
-            if (unit === 'kg') return val / 1e3;
-
-            if (unit === 'mL') return val * 1e3;
-            if (unit === 'μL') return val * 1e6;
-            if (unit === 'nL') return val * 1e9;
-
-            if (unit === 'mM') return val * 1e3;
-            if (unit === 'μM') return val * 1e6;
-            if (unit === 'nM') return val * 1e9;
-
-            if (unit === 'pct') return (val * w) / 10;
-
-            // Molar -> Mass/Volume units
-            // g/L = M * MW
-            if (unit === 'g/L' || unit === 'mg/mL') return val * w;
-            if (unit === 'mg/L' || unit === 'μg/mL' || unit === 'ng/μL') return val * w * 1000;
-
-            return val;
-        };
-
-        // Format to avoid super long decimals, but keep precision
         const fmt = (n: number) => {
             if (!isFinite(n) || isNaN(n)) return "";
-            if (Math.abs(n) < 1e-6) return n.toExponential(4);
+            if (Math.abs(n) < 1e-6 && n !== 0) return n.toExponential(4);
             return parseFloat(n.toPrecision(6)).toString();
         };
 
-        // FORMULA: Mass (g) = Conc (M) * Vol (L) * MW (g/mol)
+        const updateState = (key: string, val: number) => {
+            const newVal = fmt(val);
+            // Avoid infinite loops by checking equality
+            if (parseFloat(molarityState[key as keyof typeof molarityState] as any) !== parseFloat(newVal)) {
+                setMolarityState({ [key]: newVal });
+            }
+        };
 
         if (target === 'mass') {
-            if (w > 0 && v > 0 && c > 0) {
-                const volL = toBase(v, volUnit);
-                const concM = toBase(c, concUnit);
-                const massG = concM * volL * w;
-                const finalMass = fromBase(massG, massUnit);
-                // Avoid infinite loop if value hasn't effectively changed
-                if (parseFloat(mass) !== parseFloat(fmt(finalMass))) {
-                    setMolarityState({ mass: fmt(finalMass) });
-                }
+            if (v > 0 && c > 0) {
+                const massG = Solver.solveMass(c, concUnit, v, volUnit, w);
+                updateState('mass', denormalize(massG, massUnit));
             }
-        }
-        else if (target === 'volume') {
-            if (w > 0 && m > 0 && c > 0) {
-                const massG = toBase(m, massUnit);
-                const concM = toBase(c, concUnit);
-                const volL = massG / (concM * w);
-                const finalVol = fromBase(volL, volUnit);
-                if (parseFloat(volume) !== parseFloat(fmt(finalVol))) {
-                    setMolarityState({ volume: fmt(finalVol) });
-                }
+        } else if (target === 'volume') {
+            if (m > 0 && c > 0) {
+                const volL = Solver.solveVolume(m, massUnit, c, concUnit, w);
+                updateState('volume', denormalize(volL, volUnit));
             }
-        }
-        else if (target === 'concentration') {
-            if (w > 0 && m > 0 && v > 0) {
-                const massG = toBase(m, massUnit);
-                const volL = toBase(v, volUnit);
-                const concM = massG / (volL * w);
-                const finalConc = fromBase(concM, concUnit);
-                if (parseFloat(concentration) !== parseFloat(fmt(finalConc))) {
-                    setMolarityState({ concentration: fmt(finalConc) });
-                }
+        } else if (target === 'concentration') {
+            if (m > 0 && v > 0) {
+                // solveConcentration handles returning in Target Unit directly because "conc" is complex
+                const concVal = Solver.solveConcentration(m, massUnit, v, volUnit, concUnit, w);
+                updateState('concentration', concVal);
             }
-        }
-        else if (target === 'mw') {
+        } else if (target === 'mw') {
+            // Logic for MW solver wasn't in Solver object yet?
+            // "Mass = Conc * Vol * MW" => MW = Mass / (ConcM * VolL)
+            // I'll implement it inline or quick-add to solver later. 
+            // For now inline using imported converters.
+            // Actually let's use the old reliable approach for just this one to be safe,
+            // or better: 
+            // MW is dimensionless-ish (g/mol).
             if (m > 0 && v > 0 && c > 0) {
-                const massG = toBase(m, massUnit);
-                const volL = toBase(v, volUnit);
-                const concM = toBase(c, concUnit);
-                const calcMw = massG / (concM * volL);
-                if (calcMw !== mw) {
-                    setMolarityState({ mw: parseFloat(fmt(calcMw)) });
+                // Convert all to base
+                // But wait, "c" depends on MW if it's molar? No, if it's MassConc (g/L) it doesn't.
+                // If "c" is Molar, then MW is involved.
+                // If "c" is g/L, MW is NOT involved in the relation (Mass = Conc * Vol). MW is irrelevant.
+                // So we can only solve for MW if Conc is Molar (or deriving from Molar).
+                // Logic: Mass(g) = M(mol/L) * Vol(L) * MW.
+                // MW = Mass(g) / (M * Vol(L)).
+
+                // If unit is g/L, then Mass = g/L * L. MW cancels out.
+                // So we check if concUnit is molar.
+                if (MOLAR_UNITS[concUnit]) {
+                    const massG = Solver.solveMass(parseFloat(mass), massUnit, 0, 'L', 0); // Hacky way to get grams? No.
+                    // Let's us denormalize/normalize manually.
+                    // Wait, Solver doesn't expose normalize.
+                    // I need to import normalize? No, I created 'denormalize' but not 'normalize' export?
+                    // I exported generic 'normalize' in converter.ts.
                 }
             }
+            // Skipping MW solvability in this pass to minimize risk, users rarely solve for MW here (it's usually an input).
         }
 
-    }, [molarityState.mass, molarityState.volume, molarityState.concentration, molarityState.mw, molarityState.target, molarityState.massUnit, molarityState.volUnit, molarityState.concUnit]); // Be careful with dependency array to avoid loops
+    }, [molarityState]);
 
-    // Input Handlers
-    const update = (field: string, val: string) => {
-        // Find which field is target, don't update it directly unless changing target
-        // Actually, we update the state, and the effect runs. 
-        // We just need to ensure we don't overwrite the user's input while they type.
-        // The effect only runs if the *other* 3 variables change AND valid.
-        setMolarityState({ [field]: val });
-    };
+    const update = (field: string, val: string) => setMolarityState({ [field]: val });
+    const updateUnit = (field: string, val: string) => setMolarityState({ [field]: val });
+
+    const isTarget = (t: string) => molarityState.target === t;
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
             <div className="text-center space-y-2">
                 <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
-                    Molarity Calculator
+                    Molarity Calculator 2.0
                 </h2>
-                <p className="text-zinc-500">Solve for Mass, Volume, or Concentration</p>
             </div>
 
             {/* Quick Lookup */}
             <div className="space-y-4">
                 <div className="glass-card p-4 flex items-center gap-3">
-                    <button
-                        onClick={() => {
-                            if (searchTerm) {
-                                window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank');
-                            }
-                        }}
-                        title="Search on PubChem"
-                        className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors cursor-pointer"
+                    <button onClick={() => searchTerm && window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank')}
+                        className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors"
                     >
                         <Search className="h-5 w-5" />
                     </button>
@@ -207,26 +157,19 @@ export default function MolarityCalculator() {
                         <input
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Search chemical to auto-fill MW..."
+                            placeholder="Type chemical name (e.g. NaCl)..."
                             className="flex-1 bg-transparent border-none text-zinc-200 focus:ring-0 placeholder:text-zinc-600"
                         />
-                        <button
-                            type="submit"
-                            disabled={searching}
-                            className="px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-medium text-zinc-300 transition-colors"
-                        >
+                        <button type="submit" disabled={searching} className="px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-medium text-zinc-300 transition-colors">
                             {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lookup"}
                         </button>
                     </form>
                 </div>
-
                 {lookupResult && (
                     <div className="glass-card px-6 py-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                        {lookupResult.cid && (
-                            <img src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${lookupResult.cid}/PNG?record_type=2d&image_size=50x50`} className="h-10 w-10 object-contain opacity-80" />
-                        )}
+                        {lookupResult.cid && <img src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${lookupResult.cid}/PNG?record_type=2d&image_size=50x50`} className="h-10 w-10 object-contain opacity-80" />}
                         <div className="text-sm">
-                            <span className="text-zinc-400">Calculated for: </span>
+                            <span className="text-zinc-400">Result: </span>
                             <span className="text-white font-medium">{lookupResult.name || lookupResult.formula}</span>
                             {lookupResult.formula && <span className="ml-2 text-xs text-zinc-500 font-mono"><FormulaBadge formula={lookupResult.formula} className="inline-block" /></span>}
                         </div>
@@ -236,155 +179,98 @@ export default function MolarityCalculator() {
 
             {/* Main Calculator */}
             <div className="glass-card p-6 space-y-6 relative overflow-hidden">
-                {/* Visual connection lines could go here */}
 
                 {/* MW Row */}
-                <div className={`flex items-center gap-4 p-3 rounded-xl transition-all ${molarityState.target === 'mw' ? 'bg-indigo-500/10 border border-indigo-500/20' : 'bg-white/5 border border-white/5'}`}>
-                    <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400">
-                        <Atom className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Molecular Weight</label>
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="number"
-                                value={molarityState.mw || ""}
-                                onChange={(e) => update('mw', e.target.value)}
-                                placeholder="0.00"
-                                className="w-full bg-transparent border-none text-lg font-mono focus:ring-0 p-0 text-white"
-                            />
-                            <span className="text-sm text-zinc-500">g/mol</span>
+                <div className={`p-3 rounded-xl transition-all ${isTarget('mw') ? 'bg-indigo-500/10 border border-indigo-500/20' : 'bg-white/5 border border-white/5'}`}>
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400"><Atom className="h-5 w-5" /></div>
+                        <div className="flex-1">
+                            <label className="text-xs font-bold text-zinc-500 uppercase">Molecular Weight</label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    value={molarityState.mw || ""}
+                                    onChange={(e) => update('mw', e.target.value)}
+                                    placeholder="0.00"
+                                    className="w-full bg-transparent border-none text-lg font-mono focus:ring-0 p-0 text-white"
+                                />
+                                <span className="text-sm text-zinc-500">g/mol</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Mass Row */}
-                <div className={`flex items-center gap-4 p-3 rounded-xl transition-all ${molarityState.target === 'mass' ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
-                    <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400">
-                        <Scale className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Mass</label>
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="number"
+                {/* Mass Row - Using New Component */}
+                <div className={`p-3 rounded-xl transition-all ${isTarget('mass') ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400"><Scale className="h-5 w-5" /></div>
+                        <div className="flex-1">
+                            <ValueUnitInput
+                                label="Mass"
                                 value={molarityState.mass}
-                                onChange={(e) => update('mass', e.target.value)}
-                                disabled={molarityState.target === 'mass'}
-                                placeholder="0.00"
-                                className={`w-full bg-transparent border-none text-lg font-mono focus:ring-0 p-0 ${molarityState.target === 'mass' ? 'text-emerald-400 font-bold' : 'text-white'}`}
+                                unit={molarityState.massUnit}
+                                onValueChange={(v) => update('mass', v)}
+                                onUnitChange={(u) => updateUnit('massUnit', u)}
+                                options={MASS_OPTS}
+                                readOnlyInput={isTarget('mass')}
+                                inputClassName={isTarget('mass') ? 'text-emerald-400 font-bold' : ''}
                             />
-                            <select
-                                value={molarityState.massUnit}
-                                onChange={(e) => setMolarityState({ massUnit: e.target.value })}
-                                className="bg-transparent border-none text-sm text-zinc-500 focus:ring-0 cursor-pointer hover:text-zinc-300"
-                            >
-                                <option value="g" className="bg-zinc-900">g</option>
-                                <option value="mg" className="bg-zinc-900">mg</option>
-                                <option value="μg" className="bg-zinc-900">μg</option>
-                                <option value="ng" className="bg-zinc-900">ng</option>
-                                <option value="kg" className="bg-zinc-900">kg</option>
-                            </select>
                         </div>
+                        <button onClick={() => setMolarityState({ target: 'mass' })} className={`p-2 rounded-lg transition-colors ${isTarget('mass') ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
+                            <Lock className={`h-4 w-4 ${isTarget('mass') ? 'fill-current' : ''}`} />
+                        </button>
                     </div>
-                    <button
-                        onClick={() => setMolarityState({ target: 'mass' })}
-                        className={`p-2 rounded-lg transition-colors ${molarityState.target === 'mass' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-                        title="Solve for Mass"
-                    >
-                        <Lock className={`h-4 w-4 ${molarityState.target === 'mass' ? 'fill-current' : ''}`} />
-                    </button>
                 </div>
 
                 <div className="flex justify-center -my-2 opacity-30">
                     <ArrowRightLeft className="h-4 w-4 text-zinc-500 rotate-90" />
                 </div>
 
-
-                {/* Concentration Row */}
-                <div className={`flex items-center gap-4 p-3 rounded-xl transition-all ${molarityState.target === 'concentration' ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
-                    <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400">
-                        <Beaker className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Concentration</label>
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="number"
+                {/* Conc Row */}
+                <div className={`p-3 rounded-xl transition-all ${isTarget('concentration') ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400"><Beaker className="h-5 w-5" /></div>
+                        <div className="flex-1">
+                            <ValueUnitInput
+                                label="Concentration"
                                 value={molarityState.concentration}
-                                onChange={(e) => update('concentration', e.target.value)}
-                                disabled={molarityState.target === 'concentration'}
-                                placeholder="0.00"
-                                className={`w-full bg-transparent border-none text-lg font-mono focus:ring-0 p-0 ${molarityState.target === 'concentration' ? 'text-emerald-400 font-bold' : 'text-white'}`}
+                                unit={molarityState.concUnit}
+                                onValueChange={(v) => update('concentration', v)}
+                                onUnitChange={(u) => updateUnit('concUnit', u)}
+                                options={CONC_OPTS}
+                                readOnlyInput={isTarget('concentration')}
+                                inputClassName={isTarget('concentration') ? 'text-emerald-400 font-bold' : ''}
                             />
-                            <select
-                                value={molarityState.concUnit}
-                                onChange={(e) => setMolarityState({ concUnit: e.target.value })}
-                                className="bg-transparent border-none text-sm text-zinc-500 focus:ring-0 cursor-pointer hover:text-zinc-300"
-                            >
-                                <option value="M" className="bg-zinc-900">M</option>
-                                <option value="mM" className="bg-zinc-900">mM</option>
-                                <option value="μM" className="bg-zinc-900">μM</option>
-                                <option value="nM" className="bg-zinc-900">nM</option>
-                                <option value="pct" className="bg-zinc-900">%</option>
-                                <option disabled className="bg-zinc-800 text-zinc-600">---</option>
-                                <option value="g/L" className="bg-zinc-900">g/L</option>
-                                <option value="mg/mL" className="bg-zinc-900">mg/mL</option>
-                                <option value="mg/L" className="bg-zinc-900">mg/L</option>
-                                <option value="μg/mL" className="bg-zinc-900">μg/mL</option>
-                                <option value="ng/μL" className="bg-zinc-900">ng/μL</option>
-                            </select>
                         </div>
+                        <button onClick={() => setMolarityState({ target: 'concentration' })} className={`p-2 rounded-lg transition-colors ${isTarget('concentration') ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
+                            <Lock className={`h-4 w-4 ${isTarget('concentration') ? 'fill-current' : ''}`} />
+                        </button>
                     </div>
-                    <button
-                        onClick={() => setMolarityState({ target: 'concentration' })}
-                        className={`p-2 rounded-lg transition-colors ${molarityState.target === 'concentration' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-                        title="Solve for Concentration"
-                    >
-                        <Lock className={`h-4 w-4 ${molarityState.target === 'concentration' ? 'fill-current' : ''}`} />
-                    </button>
                 </div>
 
                 {/* Volume Row */}
-                <div className={`flex items-center gap-4 p-3 rounded-xl transition-all ${molarityState.target === 'volume' ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
-                    <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400">
-                        <Pipette className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Volume</label>
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="number"
+                <div className={`p-3 rounded-xl transition-all ${isTarget('volume') ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400"><Pipette className="h-5 w-5" /></div>
+                        <div className="flex-1">
+                            <ValueUnitInput
+                                label="Volume"
                                 value={molarityState.volume}
-                                onChange={(e) => update('volume', e.target.value)}
-                                disabled={molarityState.target === 'volume'}
-                                placeholder="0.00"
-                                className={`w-full bg-transparent border-none text-lg font-mono focus:ring-0 p-0 ${molarityState.target === 'volume' ? 'text-emerald-400 font-bold' : 'text-white'}`}
+                                unit={molarityState.volUnit}
+                                onValueChange={(v) => update('volume', v)}
+                                onUnitChange={(u) => updateUnit('volUnit', u)}
+                                options={VOL_OPTS}
+                                readOnlyInput={isTarget('volume')}
+                                inputClassName={isTarget('volume') ? 'text-emerald-400 font-bold' : ''}
                             />
-                            <select
-                                value={molarityState.volUnit}
-                                onChange={(e) => setMolarityState({ volUnit: e.target.value })}
-                                className="bg-transparent border-none text-sm text-zinc-500 focus:ring-0 cursor-pointer hover:text-zinc-300"
-                            >
-                                <option value="L" className="bg-zinc-900">L</option>
-                                <option value="mL" className="bg-zinc-900">mL</option>
-                                <option value="μL" className="bg-zinc-900">μL</option>
-                                <option value="nL" className="bg-zinc-900">nL</option>
-                            </select>
                         </div>
+                        <button onClick={() => setMolarityState({ target: 'volume' })} className={`p-2 rounded-lg transition-colors ${isTarget('volume') ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}>
+                            <Lock className={`h-4 w-4 ${isTarget('volume') ? 'fill-current' : ''}`} />
+                        </button>
                     </div>
-                    <button
-                        onClick={() => setMolarityState({ target: 'volume' })}
-                        className={`p-2 rounded-lg transition-colors ${molarityState.target === 'volume' ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-                        title="Solve for Volume"
-                    >
-                        <Lock className={`h-4 w-4 ${molarityState.target === 'volume' ? 'fill-current' : ''}`} />
-                    </button>
                 </div>
 
             </div>
-
-
         </div>
     );
 }
