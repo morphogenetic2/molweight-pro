@@ -15,7 +15,9 @@ import {
     Download,
     Calculator,
     LayoutGrid,
-    Scale
+    Scale,
+    HelpCircle,
+    Beaker
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -31,7 +33,10 @@ import BufferCalculator from "@/components/calculators/BufferCalculator";
 import { HistoryPanel } from "@/components/ui/HistoryPanel";
 import { SettingsModal } from "@/components/ui/SettingsModal";
 import { RecipeLibrary } from "@/components/ui/RecipeLibrary";
+
 import { SaveRecipeModal } from "@/components/ui/SaveRecipeModal";
+import { HelpView } from "@/components/ui/HelpView";
+import { StockManager } from "@/components/ui/StockManager";
 
 const TABS = [
     { id: "mw", label: "Molecular Weight", icon: Table2, desc: "Calculate molar mass from chemical formulas and PubChem lookup" },
@@ -40,6 +45,8 @@ const TABS = [
 
     { id: "buffer_calc", label: "Buffer Calculator", icon: Calculator, desc: "Recipes for common biological buffers (Tris, PBS)" },
     { id: "buffer_recipe", label: "Recipe Builder", icon: FlaskConical, desc: "Build and save custom solution recipes" },
+    { id: "stocks", label: "Stock Buffers", icon: Beaker, desc: "Manage your inventory of stock solutions" },
+    { id: "help", label: "Help & Guide", icon: HelpCircle, desc: "Learn how to use the tools and perform calculations" },
 ] as const;
 
 export default function Home() {
@@ -324,6 +331,14 @@ export default function Home() {
 
                         {activeTab === "buffer_recipe" && (
                             <BufferBuilder />
+                        )}
+
+                        {activeTab === "stocks" && (
+                            <StockManager />
+                        )}
+
+                        {activeTab === "help" && (
+                            <HelpView />
                         )}
                     </motion.div>
                 </AnimatePresence>

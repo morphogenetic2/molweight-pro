@@ -1,7 +1,7 @@
 import { useStore } from "@/store/useStore";
 import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Loader2, Info, Plus, Check, ArrowRightLeft } from "lucide-react";
+import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { useState, useEffect } from "react";
@@ -20,8 +20,10 @@ export default function DilutionCalculator() {
     const {
         dilution, setDilution,
         bufferVolume, bufferUnit, solutes, addSolute, updateSolute,
-        setBufferVolume, setBufferUnit
+        setBufferVolume, setBufferUnit,
+        stocks
     } = useStore();
+    const [isStockSelectOpen, setIsStockSelectOpen] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [showVolumeWarning, setShowVolumeWarning] = useState(false);
 
@@ -234,7 +236,51 @@ export default function DilutionCalculator() {
             <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
                 {/* Stock Solution */}
                 <section className="glass-card">
-                    <h3 className="text-base sm:text-lg font-semibold mb-4 text-indigo-400">Stock Solution (C1)</h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-base sm:text-lg font-semibold text-indigo-400">Stock Solution (C1)</h3>
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsStockSelectOpen(!isStockSelectOpen)}
+                                className="text-[10px] flex items-center gap-1.5 px-2 py-1 rounded bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-all border border-indigo-500/20"
+                            >
+                                <Beaker className="h-3 w-3" />
+                                From Database
+                            </button>
+                            {isStockSelectOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setIsStockSelectOpen(false)} />
+                                    <div className="absolute right-0 top-full mt-2 w-64 bg-[#0f0f11] border border-white/10 rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
+                                        {stocks.length === 0 ? (
+                                            <div className="p-4 text-center text-zinc-500 text-xs italic">
+                                                No stocks saved.
+                                            </div>
+                                        ) : (
+                                            stocks.map(stock => (
+                                                <button
+                                                    key={stock.id}
+                                                    onClick={() => {
+                                                        setDilution({
+                                                            c1: stock.concentration,
+                                                            u1: stock.unit,
+                                                            name: stock.name,
+                                                            mw: stock.mw
+                                                        });
+                                                        setIsStockSelectOpen(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0"
+                                                >
+                                                    <div className="text-sm font-bold text-white">{stock.name}</div>
+                                                    <div className="text-xs text-zinc-400 font-mono">
+                                                        {stock.concentration} {stock.unit}
+                                                    </div>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
                     <div className="space-y-4">
                         <div className="flex gap-2">
                             <input

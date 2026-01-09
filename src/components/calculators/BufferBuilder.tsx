@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
-import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare } from "lucide-react";
+import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
@@ -103,6 +103,14 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                 } else if (domain2 === 'mass' && domain1 === 'molar') {
                     c1Base = c1Base * mw;
                 }
+            }
+
+            if (c2Base > c1Base) {
+                return (
+                    <span className="text-red-400 text-xs font-bold leading-tight block">
+                        Check final<br />concentration
+                    </span>
+                );
             }
 
             const v1L = (c2Base * volL) / c1Base;
@@ -220,15 +228,13 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                                 <input
                                     type="number"
                                     value={solute.conc}
-                                    disabled={solute.isStock}
                                     onChange={(e) => updateSolute(solute.id, { conc: e.target.value })}
-                                    className={`w-20 bg-transparent border-transparent p-0 focus:ring-0 text-sm ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    className="w-20 bg-transparent border-transparent p-0 focus:ring-0 text-sm"
                                 />
                                 <select
                                     value={solute.unit}
-                                    disabled={solute.isStock}
                                     onChange={(e) => updateSolute(solute.id, { unit: e.target.value })}
-                                    className={`bg-transparent border-transparent p-0 focus:ring-0 text-xs text-zinc-400 min-w-[90px] ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    className="bg-transparent border-transparent p-0 focus:ring-0 text-xs text-zinc-400 min-w-[90px]"
                                 >
                                     <option value="M">M</option>
                                     <option value="mM">mM</option>
@@ -320,13 +326,11 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                         <input
                             type="number"
                             value={solute.conc}
-                            disabled={solute.isStock}
                             onChange={(e) => updateSolute(solute.id, { conc: e.target.value })}
                             className="bg-transparent text-sm w-12 p-0 border-none"
                         />
                         <select
                             value={solute.unit}
-                            disabled={solute.isStock}
                             onChange={(e) => updateSolute(solute.id, { unit: e.target.value })}
                             className="bg-transparent text-[10px] text-zinc-400 p-0 border-none"
                         >
@@ -358,11 +362,13 @@ export default function BufferBuilder() {
         bufferVolume, setBufferVolume,
         bufferUnit, setBufferUnit,
         solutes, addSolute, clearSolutes, updateSolute,
-        setIsRecipeLibraryOpen, setIsSaveRecipeOpen
+        setIsRecipeLibraryOpen, setIsSaveRecipeOpen,
+        stocks
     } = useStore();
 
     const [confirmClear, setConfirmClear] = useState(false);
     const [isChecklist, setIsChecklist] = useState(false);
+    const [isStockSelectOpen, setIsStockSelectOpen] = useState(false);
 
     const toggleCheck = useCallback((id: string) => {
         updateSolute(id, { done: !solutes.find((s: any) => s.id === id)?.done });
@@ -473,13 +479,60 @@ export default function BufferBuilder() {
                     </div>
                 )}
 
-                <button
-                    onClick={() => addSolute()}
-                    className="w-full py-4 border-t border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-colors text-zinc-400 font-medium flex items-center justify-center gap-2 text-sm"
-                >
-                    <Plus className="h-4 w-4" />
-                    Add Ingredient
-                </button>
+                <div className="grid grid-cols-2 divide-x divide-white/5 border-t border-white/5 bg-white/[0.01]">
+                    <button
+                        onClick={() => addSolute()}
+                        className="py-4 hover:bg-white/[0.03] transition-colors text-zinc-400 font-medium flex items-center justify-center gap-2 text-sm"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Add Ingredient
+                    </button>
+                    <div className="relative">
+                        <button
+                            onClick={() => setIsStockSelectOpen(!isStockSelectOpen)}
+                            className="w-full py-4 hover:bg-white/[0.03] transition-colors text-indigo-400 font-medium flex items-center justify-center gap-2 text-sm"
+                        >
+                            <Beaker className="h-4 w-4" />
+                            From Stock
+                        </button>
+
+                        {isStockSelectOpen && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsStockSelectOpen(false)} />
+                                <div className="absolute bottom-full left-0 right-0 mb-2 mx-2 bg-[#0f0f11] border border-white/10 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">
+                                    {stocks.length === 0 ? (
+                                        <div className="p-4 text-center text-zinc-500 text-xs italic">
+                                            No stocks saved.
+                                        </div>
+                                    ) : (
+                                        stocks.map(stock => (
+                                            <button
+                                                key={stock.id}
+                                                onClick={() => {
+                                                    addSolute({
+                                                        name: stock.name,
+                                                        mw: stock.mw.toString(),
+                                                        formula: stock.formula,
+                                                        isStock: true,
+                                                        stockConc: stock.concentration,
+                                                        stockUnit: stock.unit
+                                                    });
+                                                    setIsStockSelectOpen(false);
+                                                }}
+                                                className="w-full text-left px-4 py-3 hover:bg-white/5 border-b border-white/5 last:border-0"
+                                            >
+                                                <div className="text-sm font-bold text-white">{stock.name}</div>
+                                                <div className="text-xs text-zinc-400 font-mono">
+                                                    Stock: {stock.concentration} {stock.unit === 'pct' ? '%' : stock.unit}
+                                                </div>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">

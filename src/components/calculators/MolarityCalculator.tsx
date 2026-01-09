@@ -76,6 +76,15 @@ export default function MolarityCalculator() {
             if (unit === 'μM') return val / 1e6;
             if (unit === 'nM') return val / 1e9;
 
+            if (unit === 'pct') return w > 0 ? (val * 10) / w : 0;
+
+            // Mass/Volume units -> Molar
+            // M = (g/L) / MW
+            if (w > 0) {
+                if (unit === 'g/L' || unit === 'mg/mL') return val / w;
+                if (unit === 'mg/L' || unit === 'μg/mL' || unit === 'ng/μL') return (val / 1000) / w;
+            }
+
             return val; // g, L, M
         };
 
@@ -93,6 +102,13 @@ export default function MolarityCalculator() {
             if (unit === 'mM') return val * 1e3;
             if (unit === 'μM') return val * 1e6;
             if (unit === 'nM') return val * 1e9;
+
+            if (unit === 'pct') return (val * w) / 10;
+
+            // Molar -> Mass/Volume units
+            // g/L = M * MW
+            if (unit === 'g/L' || unit === 'mg/mL') return val * w;
+            if (unit === 'mg/L' || unit === 'μg/mL' || unit === 'ng/μL') return val * w * 1000;
 
             return val;
         };
@@ -310,6 +326,13 @@ export default function MolarityCalculator() {
                                 <option value="mM" className="bg-zinc-900">mM</option>
                                 <option value="μM" className="bg-zinc-900">μM</option>
                                 <option value="nM" className="bg-zinc-900">nM</option>
+                                <option value="pct" className="bg-zinc-900">%</option>
+                                <option disabled className="bg-zinc-800 text-zinc-600">---</option>
+                                <option value="g/L" className="bg-zinc-900">g/L</option>
+                                <option value="mg/mL" className="bg-zinc-900">mg/mL</option>
+                                <option value="mg/L" className="bg-zinc-900">mg/L</option>
+                                <option value="μg/mL" className="bg-zinc-900">μg/mL</option>
+                                <option value="ng/μL" className="bg-zinc-900">ng/μL</option>
                             </select>
                         </div>
                     </div>

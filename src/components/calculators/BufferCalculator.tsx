@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useStore } from "@/store/useStore";
-import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings2 } from "lucide-react";
+import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings2, Save } from "lucide-react";
 import { formatMass, formatVolume } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -105,6 +105,7 @@ export default function BufferCalculator() {
     const [isStocksConfigOpen, setIsStocksConfigOpen] = useState(false);
 
     // --- Computed ---
+    const { addStock } = useStore();
     const buffer = useMemo(() => BUFFER_SYSTEMS.find(b => b.id === selectedBufferId)!, [selectedBufferId]);
 
     // Auto-select valid stock if current one is invalid
@@ -410,6 +411,28 @@ export default function BufferCalculator() {
                                             </div>
                                         </div>
                                     </div>
+
+                                    <button
+                                        onClick={() => {
+                                            addStock({
+                                                id: Math.random().toString(36).substr(2, 9),
+                                                name: `${buffer.name} pH ${targetPH}`,
+                                                formula: "",
+                                                mw: 0,
+                                                conc: 0,
+                                                concentration: totalConc.toString(),
+                                                unit: concUnit,
+                                                volume: totalVol.toString(),
+                                                volUnit: volUnit,
+                                                dateAdded: new Date().toISOString()
+                                            });
+                                            // Optional: Show toast
+                                        }}
+                                        className="w-full py-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl text-emerald-400 font-bold flex items-center justify-center gap-2 mt-4"
+                                    >
+                                        <Save className="h-4 w-4" />
+                                        Save Result as Stock
+                                    </button>
                                 </>
                             ) : (
                                 <div className="text-center py-10 text-zinc-500">
@@ -424,96 +447,98 @@ export default function BufferCalculator() {
 
             {/* Stocks Config Modal */}
             <AnimatePresence>
-                {isStocksConfigOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-[#0f0f11] border border-white/10 w-full max-w-lg rounded-2xl shadow-xl overflow-hidden"
-                        >
-                            <div className="p-6 border-b border-white/5 flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-white">pH Adjustment Stocks</h3>
-                                <button onClick={() => setIsStocksConfigOpen(false)} className="text-zinc-500 hover:text-white">Close</button>
-                            </div>
-                            <div className="p-6 space-y-4">
-                                <div className="space-y-2">
-                                    {stocks.map((stock, idx) => (
-                                        <div key={stock.id} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
-                                            <div className="flex flex-col items-center gap-1">
-                                                <button
-                                                    onClick={() => {
-                                                        const newStocks = [...stocks];
-                                                        newStocks[idx].type = stock.type === 'acid' ? 'base' : 'acid';
-                                                        setStocks(newStocks);
-                                                    }}
-                                                    className={`p-2 rounded-lg transition-colors ${stock.type === 'acid' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}
-                                                    title="Click to toggle Acid/Base"
-                                                >
-                                                    <Droplets className="h-4 w-4" />
-                                                </button>
-                                                <span className={`text-[10px] font-bold uppercase ${stock.type === 'acid' ? 'text-orange-400' : 'text-blue-400'}`}>
-                                                    {stock.type}
-                                                </span>
-                                            </div>
-                                            <div className="flex-1">
-                                                <input
-                                                    value={stock.name}
-                                                    onChange={(e) => {
-                                                        const newStocks = [...stocks];
-                                                        const val = e.target.value;
-                                                        newStocks[idx].name = val;
-
-                                                        // Simple Auto-detection
-                                                        const lower = val.toLowerCase();
-                                                        if (lower.includes("hcl") || lower.includes("acid") || lower.includes("h2so4")) {
-                                                            newStocks[idx].type = 'acid';
-                                                        } else if (lower.includes("naoh") || lower.includes("koh") || lower.includes("base") || lower.includes("hydroxide")) {
-                                                            newStocks[idx].type = 'base';
-                                                        }
-
-                                                        setStocks(newStocks);
-                                                    }}
-                                                    className="bg-transparent border-none text-sm font-bold text-white focus:ring-0 w-full"
-                                                />
-                                                <div className="flex items-center gap-2 text-xs text-zinc-500">
-                                                    <span>Conc:</span>
-                                                    <input
-                                                        type="number"
-                                                        value={stock.concM}
-                                                        onChange={(e) => {
+                {
+                    isStocksConfigOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="bg-[#0f0f11] border border-white/10 w-full max-w-lg rounded-2xl shadow-xl overflow-hidden"
+                            >
+                                <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                                    <h3 className="text-lg font-bold text-white">pH Adjustment Stocks</h3>
+                                    <button onClick={() => setIsStocksConfigOpen(false)} className="text-zinc-500 hover:text-white">Close</button>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                    <div className="space-y-2">
+                                        {stocks.map((stock, idx) => (
+                                            <div key={stock.id} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <button
+                                                        onClick={() => {
                                                             const newStocks = [...stocks];
-                                                            newStocks[idx].concM = parseFloat(e.target.value);
+                                                            newStocks[idx].type = stock.type === 'acid' ? 'base' : 'acid';
                                                             setStocks(newStocks);
                                                         }}
-                                                        className="bg-transparent border-b border-zinc-700 w-12 text-center focus:outline-none"
-                                                    />
-                                                    <span>M</span>
+                                                        className={`p-2 rounded-lg transition-colors ${stock.type === 'acid' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}
+                                                        title="Click to toggle Acid/Base"
+                                                    >
+                                                        <Droplets className="h-4 w-4" />
+                                                    </button>
+                                                    <span className={`text-[10px] font-bold uppercase ${stock.type === 'acid' ? 'text-orange-400' : 'text-blue-400'}`}>
+                                                        {stock.type}
+                                                    </span>
                                                 </div>
+                                                <div className="flex-1">
+                                                    <input
+                                                        value={stock.name}
+                                                        onChange={(e) => {
+                                                            const newStocks = [...stocks];
+                                                            const val = e.target.value;
+                                                            newStocks[idx].name = val;
+
+                                                            // Simple Auto-detection
+                                                            const lower = val.toLowerCase();
+                                                            if (lower.includes("hcl") || lower.includes("acid") || lower.includes("h2so4")) {
+                                                                newStocks[idx].type = 'acid';
+                                                            } else if (lower.includes("naoh") || lower.includes("koh") || lower.includes("base") || lower.includes("hydroxide")) {
+                                                                newStocks[idx].type = 'base';
+                                                            }
+
+                                                            setStocks(newStocks);
+                                                        }}
+                                                        className="bg-transparent border-none text-sm font-bold text-white focus:ring-0 w-full"
+                                                    />
+                                                    <div className="flex items-center gap-2 text-xs text-zinc-500">
+                                                        <span>Conc:</span>
+                                                        <input
+                                                            type="number"
+                                                            value={stock.concM}
+                                                            onChange={(e) => {
+                                                                const newStocks = [...stocks];
+                                                                newStocks[idx].concM = parseFloat(e.target.value);
+                                                                setStocks(newStocks);
+                                                            }}
+                                                            className="bg-transparent border-b border-zinc-700 w-12 text-center focus:outline-none"
+                                                        />
+                                                        <span>M</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setStocks(stocks.filter(s => s.id !== stock.id))}
+                                                    className="p-2 text-zinc-600 hover:text-red-400"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => setStocks(stocks.filter(s => s.id !== stock.id))}
-                                                className="p-2 text-zinc-600 hover:text-red-400"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const newId = `custom_${Date.now()}`;
+                                            setStocks([...stocks, { id: newId, name: "New Stock", concM: 1, type: "acid" }]);
+                                        }}
+                                        className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-zinc-400 text-sm font-medium flex items-center justify-center gap-2"
+                                    >
+                                        <Plus className="h-4 w-4" /> Add Stock Solution
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        const newId = `custom_${Date.now()}`;
-                                        setStocks([...stocks, { id: newId, name: "New Stock", concM: 1, type: "acid" }]);
-                                    }}
-                                    className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-zinc-400 text-sm font-medium flex items-center justify-center gap-2"
-                                >
-                                    <Plus className="h-4 w-4" /> Add Stock Solution
-                                </button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-        </div>
+                            </motion.div>
+                        </div>
+                    )
+                }
+            </AnimatePresence >
+        </div >
     );
 }

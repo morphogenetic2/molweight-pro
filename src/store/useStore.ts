@@ -4,8 +4,8 @@ import { ChemicalData } from "@/lib/parser";
 import { Recipe, DEFAULT_RECIPES } from "@/lib/recipes";
 
 interface AppState {
-    activeTab: "home" | "mw" | "dilution" | "buffer_calc" | "buffer_recipe" | "molarity";
-    setActiveTab: (tab: "home" | "mw" | "dilution" | "buffer_calc" | "buffer_recipe" | "molarity") => void;
+    activeTab: "home" | "mw" | "dilution" | "buffer_calc" | "buffer_recipe" | "molarity" | "help" | "stocks";
+    setActiveTab: (tab: "home" | "mw" | "dilution" | "buffer_calc" | "buffer_recipe" | "molarity" | "help" | "stocks") => void;
 
     // MW Calculator State
     mwInput: string;
@@ -71,8 +71,29 @@ interface AppState {
     isSaveRecipeOpen: boolean;
     setIsSaveRecipeOpen: (val: boolean) => void;
 
+    // Stock Database
+    stocks: Stock[];
+    addStock: (stock: Stock) => void;
+    updateStock: (id: string, data: Partial<Stock>) => void;
+    removeStock: (id: string) => void;
+
     // Actions
     resetStore: () => void;
+}
+
+export interface Stock {
+    id: string;
+    name: string;
+    formula: string;
+    mw: number;
+    conc: number; // Stored as number for ease (assuming Base Molarity or similar) - Actually let's store string to match other inputs? No, let's keep it robust.
+    // Let's stick to the app's pattern: everything is string in inputs, but maybe we standardise here?
+    // Let's store as strings to avoid precision issues until calc time.
+    concentration: string;
+    unit: string;
+    volume?: string;
+    volUnit?: string;
+    dateAdded?: string;
 }
 
 export const useStore = create<AppState>()(
@@ -186,25 +207,28 @@ export const useStore = create<AppState>()(
             isSaveRecipeOpen: false,
             setIsSaveRecipeOpen: (val) => set({ isSaveRecipeOpen: val }),
 
+            // Stocks Implementation
+            stocks: [],
+            addStock: (stock) => set((state) => ({ stocks: [...(state.stocks || []), stock] })),
+            updateStock: (id, data) => set((state) => ({
+                stocks: (state.stocks || []).map((s) => (s.id === id ? { ...s, ...data } : s))
+            })),
+            removeStock: (id) => set((state) => ({
+                stocks: (state.stocks || []).filter((s) => s.id !== id)
+            })),
+
             resetStore: () => {
                 set({
                     mwInput: "",
                     mwResult: null,
-                    history: [],
                     dilution: {
-                        name: "",
-                        mw: 0,
-                        c1: "",
-                        u1: "M",
-                        c2: "",
-                        u2: "M",
-                        v2: "",
-                        vu2: "mL",
-                        linkedSoluteId: null,
+                        c1: "", u1: "M", c2: "", u2: "M", v2: "", vu2: "mL",
+                        mw: 0, name: "",
+                        linkedSoluteId: null
                     },
-                    bufferVolume: "100",
-                    bufferUnit: "mL",
                     solutes: [],
+                    bufferVolume: "",
+                    bufferUnit: "mL",
                     activeRecipeName: null,
 
                     molarityState: {
@@ -218,10 +242,10 @@ export const useStore = create<AppState>()(
                         target: "mass"
                     }
                 });
-            },
+            }
         }),
         {
-            name: "molweight-pro-storage",
+            name: "molweight-storage-v2",
             // Partial persistence: don't persist open states
             partialize: (state) => {
                 const {
