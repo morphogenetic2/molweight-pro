@@ -326,15 +326,15 @@ export default function DilutionCalculator() {
                                 value={dilution.u2}
                                 onChange={(e) => setDilution({ u2: e.target.value })}
                             >
-                                <option value="M">M</option>
-                                <option value="mM">mM</option>
-                                <option value="μM">μM</option>
-                                <option value="μg/mL">μg/mL</option>
-                                <option value="ng/μL">ng/μL</option>
-                                <option value="mg/mL">mg/mL</option>
-                                <option value="mg/L">mg/L</option>
-                                <option value="g/L">g/L</option>
-                                <option value="pct">% (w/v)</option>
+                                <option value="M" disabled={(!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1)}>M</option>
+                                <option value="mM" disabled={(!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1)}>mM</option>
+                                <option value="μM" disabled={(!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1)}>μM</option>
+                                <option value="μg/mL" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>μg/mL</option>
+                                <option value="ng/μL" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>ng/μL</option>
+                                <option value="mg/mL" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>mg/mL</option>
+                                <option value="mg/L" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>mg/L</option>
+                                <option value="g/L" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>g/L</option>
+                                <option value="pct" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>% (w/v)</option>
                             </select>
                         </div>
                         <div className="flex gap-2">
