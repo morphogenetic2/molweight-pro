@@ -54,8 +54,7 @@ export default function Home() {
         activeTab, setActiveTab,
         setIsHistoryOpen, setIsSettingsOpen,
         setIsRecipeLibraryOpen, setIsSaveRecipeOpen,
-        activeRecipeName,
-        theme
+        activeRecipeName
     } = useStore();
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -63,7 +62,7 @@ export default function Home() {
     const closeMobileMenu = () => setMobileMenuOpen(false);
 
     return (
-        <div data-theme={theme} className={`flex h-screen overflow-hidden text-white relative ${theme === 'light' ? 'bg-gray-100 text-gray-900' : 'bg-[#050505]'}`}>
+        <div className="flex h-screen overflow-hidden bg-[#050505] text-white relative">
             {/* Mobile Header */}
             <header className="lg:hidden absolute top-0 left-0 right-0 h-16 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md z-30 flex items-center justify-between px-4">
                 <div className="flex items-center gap-3">
