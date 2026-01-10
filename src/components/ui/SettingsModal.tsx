@@ -1,11 +1,11 @@
 "use client";
 
 import { useStore } from "@/store/useStore";
-import { X, Trash2, Info, ShieldCheck, Database } from "lucide-react";
+import { X, Trash2, Info, ShieldCheck, Database, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function SettingsModal() {
-    const { isSettingsOpen, setIsSettingsOpen, resetStore } = useStore();
+    const { isSettingsOpen, setIsSettingsOpen, resetStore, theme, setTheme } = useStore();
 
     if (!isSettingsOpen) return null;
 
@@ -40,6 +40,38 @@ export function SettingsModal() {
                     </div>
 
                     <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 contents-scrollbar overflow-y-auto max-h-[calc(80vh-80px)]">
+                        {/* Section: Appearance */}
+                        <section>
+                            <div className="flex items-center gap-2 mb-4 text-zinc-400">
+                                {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                                <h3 className="text-sm font-bold uppercase tracking-widest">Appearance</h3>
+                            </div>
+                            <div className="glass-card p-4 sm:p-6 border-white/5">
+                                <div className="flex items-center justify-between gap-4 sm:gap-6">
+                                    <div>
+                                        <h4 className="font-bold text-white mb-1">Theme</h4>
+                                        <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed">
+                                            Switch between dark and light mode.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 p-1 bg-white/5 rounded-xl border border-white/10">
+                                        <button
+                                            onClick={() => setTheme("dark")}
+                                            className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-white'}`}
+                                        >
+                                            <Moon className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => setTheme("light")}
+                                            className={`p-2 rounded-lg transition-all ${theme === 'light' ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-500 hover:text-white'}`}
+                                        >
+                                            <Sun className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
                         {/* Section: Data Management */}
                         <section>
                             <div className="flex items-center gap-2 mb-4 text-zinc-400">

@@ -25,15 +25,26 @@ export function HelpView() {
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
-                            <strong className="text-white">Chemical Formulas:</strong> Type standard formulas like <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">H2SO4</code> or <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">CuSO4·5H2O</code>. You can use * and . to indicate hydration states or complexes. For example, <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">H2SO4*2H2O</code> or <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">CuSO4.5H2O</code>.
+                            <strong className="text-white">Chemical Formulas:</strong> Type standard formulas like <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">H2SO4</code> or <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">CuSO4·5H2O</code>. You can use * and . to indicate hydration states.
                         </li>
                         <li>
-                            <strong className="text-white">Common Names:</strong> Type a name like "Aspirin" or "Ethanol". The app will use the PubChem API to find the structure and weight. It supports many synonyms and common names.
+                            <strong className="text-white">Common Names:</strong> Type a name like "Aspirin" or "Ethanol". The app uses PubChem to find the structure and weight.
                         </li>
                         <li>
-                            <strong className="text-white">History:</strong> Successful calculations are saved to your history (bottom right clock icon) for quick access later.
+                            <strong className="text-white">History:</strong> Successful calculations are saved (clock icon) for quick access later.
                         </li>
                     </ul>
+                    <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example</h4>
+                        <p className="text-sm">
+                            <strong>Goal:</strong> Find the molecular weight of Copper Sulfate Pentahydrate.
+                        </p>
+                        <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
+                            <li>Type <code className="bg-white/10 px-1 rounded">CuSO4·5H2O</code> (or <code className="bg-white/10 px-1 rounded">CuSO4.5H2O</code>)</li>
+                            <li>Press Enter or click Search</li>
+                            <li><strong>Result:</strong> 249.69 g/mol</li>
+                        </ol>
+                    </div>
                 </div>
             )
         },
@@ -47,18 +58,27 @@ export function HelpView() {
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
-                            <strong className="text-white">Stock (Source):</strong> Enter your starting concentration (<InlineMath math="C_1" />).
+                            <strong className="text-white">Stock (C1):</strong> Enter starting concentration.
                         </li>
                         <li>
-                            <strong className="text-white">Target (Destination):</strong> Enter your desired concentration (<InlineMath math="C_2" />) and final volume (<InlineMath math="V_2" />).
+                            <strong className="text-white">Target (C2, V2):</strong> Enter desired concentration and final volume.
                         </li>
                         <li>
-                            <strong className="text-white">Units:</strong> The calculator handles unit conversions automatically (e.g., mM to µM).
-                        </li>
-                        <li>
-                            <strong className="text-white">Stock reagents:</strong> You can calculate the dilution required for a reagent if you are building a recipe (i.e. you have a stock at 2M and want to dilute it to 20 mM for a buffer) and then add it to the recipe builder to simplify the calculations.
+                            <strong className="text-white">Units:</strong> Automatic conversion (e.g., mM to µM).
                         </li>
                     </ul>
+                    <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example</h4>
+                        <p className="text-sm">
+                            <strong>Goal:</strong> Prepare 50 mL of 100 mM NaCl from a 5 M stock.
+                        </p>
+                        <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
+                            <li>C1 = 5 M (stock concentration)</li>
+                            <li>C2 = 100 mM (target concentration)</li>
+                            <li>V2 = 50 mL (final volume)</li>
+                            <li><strong>Result:</strong> V1 = 1 mL of stock + 49 mL buffer</li>
+                        </ol>
+                    </div>
                 </div>
             )
         },
@@ -74,16 +94,21 @@ export function HelpView() {
                         </div>
                     </div>
                     <ul className="list-disc pl-5 space-y-2">
-                        <li>
-                            Select which variable you want to calculate (Mass, Volume, or Concentration).
-                        </li>
-                        <li>
-                            Fill in the other three values.
-                        </li>
-                        <li>
-                            For example, find out how many grams of NaCl (MW ~58.44) you need to make 500mL of a 1M solution.
-                        </li>
+                        <li>Select which variable to calculate (Mass, Volume, or Concentration).</li>
+                        <li>Fill in the other three values.</li>
                     </ul>
+                    <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example</h4>
+                        <p className="text-sm">
+                            <strong>Goal:</strong> How many grams of NaCl for 500 mL of 1 M solution?
+                        </p>
+                        <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
+                            <li>Set "Solve for: Mass"</li>
+                            <li>MW = 58.44 g/mol (or type "NaCl" to auto-lookup)</li>
+                            <li>Concentration = 1 M, Volume = 500 mL</li>
+                            <li><strong>Result:</strong> Mass = 29.22 g</li>
+                        </ol>
+                    </div>
                 </div>
             )
         },
@@ -93,19 +118,29 @@ export function HelpView() {
             content: (
                 <div className="space-y-4 text-zinc-300">
                     <p>
-                        Create complex recipes for buffers with multiple components (like PBS or TAE).
+                        Create complex recipes for buffers with multiple components.
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
-                            <strong className="text-white">Recipe Builder:</strong> Add multiple solutes (Tris, EDTA, NaCl), define their target concentrations, and set a total volume.
+                            <strong className="text-white">Buffer Calculator:</strong> Choose a buffer system (Tris, HEPES, PBS), set target pH and concentration. Get exact amounts of acid/base forms.
                         </li>
                         <li>
-                            <strong className="text-white">Auto-Math:</strong> The app calculates exactly how much mass of each solute you need to weigh out.
+                            <strong className="text-white">Recipe Builder:</strong> Add multiple solutes, define concentrations, set total volume. Calculates how much to weigh.
                         </li>
                         <li>
-                            <strong className="text-white">Save Recipes:</strong> Save your custom buffer recipes to your library for repeated use.
+                            <strong className="text-white">Export to PDF:</strong> Print your recipe as a checklist.
                         </li>
                     </ul>
+                    <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example: 50 mM Tris pH 7.5</h4>
+                        <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
+                            <li>Select "Tris" buffer, Method: "Salt Mix"</li>
+                            <li>Target pH = 7.5, Concentration = 50 mM, Volume = 1 L</li>
+                            <li>Click "Calculate"</li>
+                            <li><strong>Result:</strong> ~2.42 g Tris Base + ~4.14 g Tris HCl</li>
+                            <li>Click "Export to Recipe Builder" to transfer</li>
+                        </ol>
+                    </div>
                 </div>
             )
         },
@@ -119,15 +154,22 @@ export function HelpView() {
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
-                            <strong className="text-white">Add Stocks:</strong> define name, concentration, and optional volume.
+                            <strong className="text-white">Add Stocks:</strong> Define name, concentration, and optional volume.
                         </li>
                         <li>
-                            <strong className="text-white">Auto-Lookup:</strong> Type a chemical name, and the app will try to fetch the Formula and MW from PubChem automatically.
+                            <strong className="text-white">Auto-Lookup:</strong> Type a chemical name to fetch Formula and MW from PubChem.
                         </li>
                         <li>
-                            <strong className="text-white">Integration:</strong> Saved stocks can be quickly referenced when building complex solution recipes.
+                            <strong className="text-white">Integration:</strong> Saved stocks can be referenced when building recipes.
                         </li>
                     </ul>
+                    <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                        <h4 className="font-bold text-amber-400 mb-2">💡 Tips</h4>
+                        <ul className="list-disc pl-5 text-sm space-y-1">
+                            <li>Save your most-used stocks (e.g., 5M NaCl, 1M HCl, 10X PBS) for quick access.</li>
+                            <li>Use the Dilution Calculator to figure out how much stock to add to a recipe.</li>
+                        </ul>
+                    </div>
                 </div>
             )
         }

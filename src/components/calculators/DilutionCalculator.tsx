@@ -5,16 +5,8 @@ import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "luci
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { useState, useEffect } from "react";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 
-// Simple debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-    const [debouncedValue, setDebouncedValue] = useState<T>(value);
-    useEffect(() => {
-        const handler = setTimeout(() => setDebouncedValue(value), delay);
-        return () => clearTimeout(handler);
-    }, [value, delay]);
-    return debouncedValue;
-}
 
 export default function DilutionCalculator() {
     const {

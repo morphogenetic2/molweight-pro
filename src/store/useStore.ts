@@ -85,6 +85,10 @@ interface AppState {
     isSaveRecipeOpen: boolean;
     setIsSaveRecipeOpen: (val: boolean) => void;
 
+    // Theme
+    theme: "dark" | "light";
+    setTheme: (val: "dark" | "light") => void;
+
     // Stock Database
     stocks: Stock[];
     addStock: (stock: Stock) => void;
@@ -238,6 +242,10 @@ export const useStore = create<AppState>()(
             setIsRecipeLibraryOpen: (val) => set({ isRecipeLibraryOpen: val }),
             isSaveRecipeOpen: false,
             setIsSaveRecipeOpen: (val) => set({ isSaveRecipeOpen: val }),
+
+            // Theme
+            theme: "dark",
+            setTheme: (val) => set({ theme: val }),
 
             // Stocks Implementation
             stocks: [],

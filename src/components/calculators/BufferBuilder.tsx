@@ -6,18 +6,10 @@ import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker,
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// Simple debounce helper since I didn't check for lodash
-function useDebounce<T>(value: T, delay: number): T {
-    const [debouncedValue, setDebouncedValue] = useState<T>(value);
-    useEffect(() => {
-        const handler = setTimeout(() => setDebouncedValue(value), delay);
-        return () => clearTimeout(handler);
-    }, [value, delay]);
-    return debouncedValue;
-}
 
 function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { solute: any; isChecklist: boolean; onToggleCheck: (id: string) => void; view?: 'table' | 'card' }) {
     const { bufferVolume, bufferUnit, removeSolute, updateSolute } = useStore();

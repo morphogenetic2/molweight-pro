@@ -216,12 +216,12 @@ export default function BufferCalculator() {
             
             if (stock) {
                 // M1V1 = M2V2 -> M2 = (M1*V1)/V2
-                const m2 = (stock.concM * result.adjuster.vol) / volL;
+                const m2 = ((stock.concM ?? 0) * result.adjuster.vol) / volL;
                 
                 addSolute({
                     name: stock.name,
                     isStock: true,
-                    stockConc: stock.concM.toString(),
+                    stockConc: (stock.concM ?? 0).toString(),
                     stockUnit: "M", // Stocks in calculator are M
                     conc: m2 < 0.1 ? (m2 * 1000).toFixed(2) : m2.toFixed(4),
                     unit: m2 < 0.1 ? "mM" : "M",
@@ -280,7 +280,7 @@ export default function BufferCalculator() {
             // We start with ONE component (Total Molarity) and add strong adjuster.
 
             let startComp: { name: string, mw: number, formula: string } | null = null;
-            let adjusterComp: StockSolution | undefined = stocks.find(s => s.id === selectedStockId);
+            let adjusterComp: StockSolution | undefined = stocks.find(s => s.id === selectedStockId) as StockSolution | undefined;
             let requiredMolesAdjuster = 0;
 
             if (!adjusterComp) return null;
@@ -373,8 +373,10 @@ export default function BufferCalculator() {
                                 <input
                                     type="number"
                                     step="0.1"
+                                    min="0"
+                                    max="14"
                                     value={targetPH}
-                                    onChange={(e) => setTargetPH(parseFloat(e.target.value))}
+                                    onChange={(e) => setTargetPH(parseFloat(e.target.value) || 0)}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                 />
                             </div>
@@ -392,8 +394,9 @@ export default function BufferCalculator() {
                             <div className="flex gap-2">
                                 <input
                                     type="number"
+                                    min="0"
                                     value={totalConc}
-                                    onChange={(e) => setTotalConc(parseFloat(e.target.value))}
+                                    onChange={(e) => setTotalConc(parseFloat(e.target.value) || 0)}
                                     className="w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                 />
                                 <select
@@ -413,8 +416,9 @@ export default function BufferCalculator() {
                             <div className="flex gap-2">
                                 <input
                                     type="number"
+                                    min="0"
                                     value={totalVol}
-                                    onChange={(e) => setTotalVol(parseFloat(e.target.value))}
+                                    onChange={(e) => setTotalVol(parseFloat(e.target.value) || 0)}
                                     className="w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                 />
                                 <select
