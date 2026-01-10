@@ -29,12 +29,26 @@ interface AppState {
     };
     setDilution: (data: Partial<AppState["dilution"]>) => void;
 
-    // Buffer State
+    // Buffer State (Recipe Builder)
     bufferVolume: string;
     bufferUnit: string;
     solutes: any[]; // To be typed properly later
     setBufferVolume: (val: string) => void;
     setBufferUnit: (unit: string) => void;
+    
+    // Buffer Calculator State (Persistence)
+    bufferConfig: {
+        selectedBufferId: string;
+        method: "salt_mix" | "titration";
+        targetPH: number;
+        totalVol: number;
+        volUnit: "L" | "mL";
+        totalConc: number;
+        concUnit: "M" | "mM";
+        selectedStockId: string;
+    };
+    setBufferConfig: (data: Partial<AppState["bufferConfig"]>) => void;
+
     addSolute: (data?: any) => void;
     updateSolute: (id: string, data: any) => void;
     removeSolute: (id: string) => void;
@@ -94,6 +108,9 @@ export interface Stock {
     volume?: string;
     volUnit?: string;
     dateAdded?: string;
+    // Buffer Calculator extensions
+    type?: "acid" | "base"; 
+    concM?: number; // Molarity for calculator
 }
 
 export const useStore = create<AppState>()(
@@ -128,6 +145,21 @@ export const useStore = create<AppState>()(
 
             bufferVolume: "100",
             bufferUnit: "mL",
+            
+            // Buffer Calculator State
+            bufferConfig: {
+                selectedBufferId: "tris",
+                method: "salt_mix", // Default to salt mix as it's common
+                targetPH: 7.4, // Default to physiological pH
+                totalVol: 1,
+                volUnit: "L",
+                totalConc: 100, // Default to 100mM
+                concUnit: "mM",
+                selectedStockId: ""
+            },
+            setBufferConfig: (data) =>
+                set((state) => ({ bufferConfig: { ...state.bufferConfig, ...data } })),
+
             solutes: [],
             activeRecipeName: null,
             setBufferVolume: (val) => set({ bufferVolume: val }),
@@ -230,6 +262,17 @@ export const useStore = create<AppState>()(
                     bufferVolume: "",
                     bufferUnit: "mL",
                     activeRecipeName: null,
+                    
+                    bufferConfig: {
+                        selectedBufferId: "tris",
+                        method: "salt_mix",
+                        targetPH: 7.4,
+                        totalVol: 1,
+                        volUnit: "L",
+                        totalConc: 100,
+                        concUnit: "mM",
+                        selectedStockId: ""
+                    },
 
                     molarityState: {
                         mw: 0,

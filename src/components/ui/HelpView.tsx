@@ -7,7 +7,8 @@ import {
     Calculator,
     FlaskConical,
     BookOpen,
-    ArrowRight
+    ArrowRight,
+    Beaker
 } from "lucide-react";
 import 'katex/dist/katex.min.css';
 import { InlineMath, BlockMath } from 'react-katex';
@@ -103,6 +104,28 @@ export function HelpView() {
                         </li>
                         <li>
                             <strong className="text-white">Save Recipes:</strong> Save your custom buffer recipes to your library for repeated use.
+                        </li>
+                    </ul>
+                </div>
+            )
+        },
+        {
+            title: "Stock Buffers",
+            icon: Beaker,
+            content: (
+                <div className="space-y-4 text-zinc-300">
+                    <p>
+                        Manage your inventory of common stock solutions to speed up recipe building.
+                    </p>
+                    <ul className="list-disc pl-5 space-y-2">
+                        <li>
+                            <strong className="text-white">Add Stocks:</strong> define name, concentration, and optional volume.
+                        </li>
+                        <li>
+                            <strong className="text-white">Auto-Lookup:</strong> Type a chemical name, and the app will try to fetch the Formula and MW from PubChem automatically.
+                        </li>
+                        <li>
+                            <strong className="text-white">Integration:</strong> Saved stocks can be quickly referenced when building complex solution recipes.
                         </li>
                     </ul>
                 </div>

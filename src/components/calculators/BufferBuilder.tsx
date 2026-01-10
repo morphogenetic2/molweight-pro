@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
-import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker } from "lucide-react";
+import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker, Printer } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // Simple debounce helper since I didn't check for lodash
 function useDebounce<T>(value: T, delay: number): T {
@@ -374,6 +376,145 @@ export default function BufferBuilder() {
         updateSolute(id, { done: !solutes.find((s: any) => s.id === id)?.done });
     }, [solutes, updateSolute]);
 
+    const handleExport = useCallback(() => {
+        // Create new PDF instance
+        const doc = new jsPDF();
+
+        // Sanitize string for PDF (replace μ with u to avoid encoding issues)
+        const sanitize = (str: string) => str.replace(/μ/g, "u");
+
+        // Title
+        doc.setFontSize(22);
+        doc.setTextColor(40);
+        doc.text("Buffer Recipe", 14, 20);
+
+        // Metadata (Date, etc)
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, 14, 28);
+
+        // Volume Info
+        doc.setFontSize(12);
+        doc.setTextColor(60);
+        doc.text(sanitize(`Total Volume: ${bufferVolume} ${bufferUnit}`), 14, 38);
+
+        // Prepare table data
+        const tableData = solutes.map((s: any) => {
+            // Calculate detailed mass for the row
+            let amount = "-";
+            const mw = parseFloat(s.mw);
+            const conc = parseFloat(s.conc);
+            const vol = parseFloat(bufferVolume);
+
+            if (!isNaN(conc) && !isNaN(vol)) {
+                let volL = vol;
+                if (bufferUnit === "mL") volL = vol / 1000;
+                if (bufferUnit === "μL") volL = vol / 1000000;
+
+                if (s.isStock && s.stockConc) {
+                    // Logic for stock calculation reuse (simplified or copied)
+                    // ...
+                }
+            }
+            
+            // Helper to calc mass for a solute object
+            const getAmountString = (solute: any) => {
+                const mw = parseFloat(solute.mw);
+                const conc = parseFloat(solute.conc);
+                const vol = parseFloat(bufferVolume);
+                
+                if (isNaN(conc) || isNaN(vol)) return "-";
+
+                let volL = vol;
+                if (bufferUnit === "mL") volL = vol / 1000;
+                if (bufferUnit === "μL") volL = vol / 1000000;
+
+                if (solute.isStock && solute.stockConc) {
+                     const c1 = parseFloat(solute.stockConc);
+                     const c2 = conc;
+                     // simple simple approximation for typical units if match
+                     if (solute.unit === solute.stockUnit) {
+                         return formatVolume((c2 * volL) / c1);
+                     }
+                     // If units mismatch, it's hard. But likely the user saw it on screen. 
+                     // Let's try to handle M/mM at least
+                     const isMolar = (u: any) => ['M', 'mM', 'μM'].includes(u);
+                     if (isMolar(solute.unit) && isMolar(solute.stockUnit)) {
+                        let c1Base = c1; 
+                        if (solute.stockUnit === 'mM') c1Base /= 1000;
+                        if (solute.stockUnit === 'μM') c1Base /= 1e6;
+                        let c2Base = c2;
+                        if (solute.unit === 'mM') c2Base /= 1000;
+                        if (solute.unit === 'μM') c2Base /= 1e6;
+                        
+                        return formatVolume((c2Base * volL) / c1Base);
+                     }
+                     // Fallback for stock
+                     return "See App";
+                }
+
+                if (solute.unit === "M") return formatMass(conc * volL * mw);
+                if (solute.unit === "mM") return formatMass((conc / 1000) * volL * mw);
+                if (solute.unit === "μM") return formatMass((conc / 1000000) * volL * mw);
+                
+                if (solute.unit === "pct") return formatMass((conc / 100) * (volL * 1000));
+                
+                const volML = volL * 1000;
+                if (solute.unit === "mg/mL") return formatMass(conc * volML / 1000);
+                if (solute.unit === "g/L") return formatMass(conc * volL);
+                 
+                return "??";
+            };
+
+            amount = getAmountString(s);
+
+            let name = s.name;
+            if (s.isStock) {
+                const stockUnitDisp = s.stockUnit === 'pct' ? '%' : s.stockUnit;
+                name += `\n(STOCK: ${s.stockConc} ${stockUnitDisp})`;
+            }
+
+            const unitDisp = s.unit === 'pct' ? '%' : s.unit;
+
+            return [
+                "", // Checkbox
+                sanitize(name),
+                s.mw || "-",
+                sanitize(`${s.conc} ${unitDisp}`),
+                sanitize(amount)
+            ];
+        });
+
+        // Generate Table
+        autoTable(doc, {
+            head: [['', 'Reagent', 'MW', 'Target Conc', 'Amount']],
+            body: tableData,
+            startY: 45,
+            theme: 'grid',
+            headStyles: { fillColor: [79, 70, 229] }, // Indigo
+            columnStyles: {
+                0: { cellWidth: 10, minCellHeight: 10 }, // Checkbox column
+                1: { cellWidth: 'auto' },
+                2: { cellWidth: 25 },
+                3: { cellWidth: 30 },
+                4: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+            },
+            didDrawCell: (data) => {
+                // Draw checkbox in first column body
+                if (data.section === 'body' && data.column.index === 0) {
+                    const dim = data.cell.height - 6;
+                    const y = data.cell.y + 3;
+                    const x = data.cell.x + (data.cell.width - dim) / 2;
+                    
+                    doc.setDrawColor(150);
+                    doc.rect(x, y, dim, dim);
+                }
+            }
+        });
+
+        doc.save("Buffer_Recipe.pdf");
+    }, [bufferVolume, bufferUnit, solutes]);
+
     return (
         <div className="space-y-4 sm:space-y-6 pb-10">
             <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-end glass-card !p-4 no-print">
@@ -536,6 +677,14 @@ export default function BufferBuilder() {
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
+                <button
+                    onClick={handleExport}
+                    disabled={solutes.length === 0}
+                    className="flex text-zinc-500 hover:border-indigo-500/30 hover:bg-indigo-500/5 hover:text-indigo-400 border border-transparent items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                    <Printer className="h-4 w-4" />
+                    Export
+                </button>
                 {confirmClear ? (
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] sm:text-sm text-zinc-500 font-medium">Clear everything?</span>
