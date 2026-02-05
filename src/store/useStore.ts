@@ -95,6 +95,12 @@ interface AppState {
     updateStock: (id: string, data: Partial<Stock>) => void;
     removeStock: (id: string) => void;
 
+    // Buffer Adjustment Stocks
+    adjustmentStocks: AdjustmentStock[];
+    addAdjustmentStock: (stock: AdjustmentStock) => void;
+    updateAdjustmentStock: (id: string, data: Partial<AdjustmentStock>) => void;
+    removeAdjustmentStock: (id: string) => void;
+
     // Actions
     resetStore: () => void;
 }
@@ -116,6 +122,20 @@ export interface Stock {
     type?: "acid" | "base"; 
     concM?: number; // Molarity for calculator
 }
+
+export interface AdjustmentStock {
+    id: string;
+    name: string;
+    concM: number;
+    type: "acid" | "base";
+}
+
+const DEFAULT_ADJUSTMENT_STOCKS: AdjustmentStock[] = [
+    { id: "hcl_1m", name: "HCl 1M", concM: 1, type: "acid" },
+    { id: "hcl_5m", name: "HCl 5M", concM: 5, type: "acid" },
+    { id: "naoh_1m", name: "NaOH 1M", concM: 1, type: "base" },
+    { id: "naoh_10m", name: "NaOH 10M", concM: 10, type: "base" },
+];
 
 export const useStore = create<AppState>()(
     persist(
@@ -257,6 +277,18 @@ export const useStore = create<AppState>()(
                 stocks: (state.stocks || []).filter((s) => s.id !== id)
             })),
 
+            // Buffer Adjustment Stocks
+            adjustmentStocks: DEFAULT_ADJUSTMENT_STOCKS,
+            addAdjustmentStock: (stock) => set((state) => ({
+                adjustmentStocks: [...(state.adjustmentStocks || []), stock]
+            })),
+            updateAdjustmentStock: (id, data) => set((state) => ({
+                adjustmentStocks: (state.adjustmentStocks || []).map((s) => (s.id === id ? { ...s, ...data } : s))
+            })),
+            removeAdjustmentStock: (id) => set((state) => ({
+                adjustmentStocks: (state.adjustmentStocks || []).filter((s) => s.id !== id)
+            })),
+
             resetStore: () => {
                 set({
                     mwInput: "",
@@ -291,12 +323,43 @@ export const useStore = create<AppState>()(
                         volUnit: "L",
                         concUnit: "M",
                         target: "mass"
-                    }
+                    },
+                    adjustmentStocks: DEFAULT_ADJUSTMENT_STOCKS
                 });
             }
         }),
         {
             name: "molweight-storage-v2",
+            version: 1,
+            migrate: (persistedState: any) => {
+                const state = { ...(persistedState || {}) };
+                const stocks = Array.isArray(state.stocks) ? state.stocks : [];
+                const hasAdjusters = Array.isArray(state.adjustmentStocks);
+
+                if (!hasAdjusters) {
+                    const legacyAdjusters = stocks.filter((s: any) =>
+                        typeof s?.concM === "number" &&
+                        (s?.type === "acid" || s?.type === "base") &&
+                        (s?.concentration == null || s?.concentration === "")
+                    );
+
+                    if (legacyAdjusters.length > 0) {
+                        state.adjustmentStocks = legacyAdjusters.map((s: any) => ({
+                            id: s.id,
+                            name: s.name,
+                            concM: s.concM,
+                            type: s.type
+                        }));
+
+                        const legacyIds = new Set(legacyAdjusters.map((s: any) => s.id));
+                        state.stocks = stocks.filter((s: any) => !legacyIds.has(s.id));
+                    } else {
+                        state.adjustmentStocks = DEFAULT_ADJUSTMENT_STOCKS;
+                    }
+                }
+
+                return state;
+            },
             // Partial persistence: don't persist open states
             partialize: (state) => {
                 const {

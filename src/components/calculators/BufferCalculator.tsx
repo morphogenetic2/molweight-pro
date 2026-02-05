@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useStore } from "@/store/useStore";
+import { useStore, AdjustmentStock } from "@/store/useStore";
 import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings2, Save } from "lucide-react";
 import { formatMass, formatVolume } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,12 +21,7 @@ type BufferSystem = {
     acidForm?: { name: string; mw: number; formula: string }; // The starting powder for acidic buffers (e.g. Citric Acid)
 };
 
-type StockSolution = {
-    id: string;
-    name: string;
-    concM: number; // Molarity
-    type: "acid" | "base";
-};
+type StockSolution = AdjustmentStock;
 
 // --- Data ---
 const BUFFER_SYSTEMS: BufferSystem[] = [
@@ -82,16 +77,17 @@ const BUFFER_SYSTEMS: BufferSystem[] = [
     }
 ];
 
-const DEFAULT_STOCKS: StockSolution[] = [
-    { id: "hcl_1m", name: "HCl 1M", concM: 1, type: "acid" },
-    { id: "hcl_5m", name: "HCl 5M", concM: 5, type: "acid" },
-    { id: "naoh_1m", name: "NaOH 1M", concM: 1, type: "base" },
-    { id: "naoh_10m", name: "NaOH 10M", concM: 10, type: "base" },
-];
-
 export default function BufferCalculator() {
     // --- State ---
-    const { bufferConfig, setBufferConfig, addStock, updateStock, removeStock, stocks } = useStore();
+    const {
+        bufferConfig,
+        setBufferConfig,
+        addStock,
+        adjustmentStocks,
+        addAdjustmentStock,
+        updateAdjustmentStock,
+        removeAdjustmentStock
+    } = useStore();
     
     // Destructure config for easier usage
     const { 
@@ -118,7 +114,7 @@ export default function BufferCalculator() {
         // ... (existing logic)
         // If we are in titration mode, ensure selected stock is compatible with available forms
         if (method === "titration") {
-            const currentStock = stocks.find(s => s.id === selectedStockId);
+            const currentStock = adjustmentStocks.find(s => s.id === selectedStockId);
             let isValid = false;
 
             if (currentStock) {
@@ -129,13 +125,13 @@ export default function BufferCalculator() {
             if (!isValid) {
                 // Try to find a valid default
                 // Prefer Acid stock if baseForm exists (common for Tris, etc)
-                let defaultStock = stocks.find(s => s.type === 'acid' && buffer.baseForm);
-                if (!defaultStock) defaultStock = stocks.find(s => s.type === 'base' && buffer.acidForm);
+                let defaultStock = adjustmentStocks.find(s => s.type === 'acid' && buffer.baseForm);
+                if (!defaultStock) defaultStock = adjustmentStocks.find(s => s.type === 'base' && buffer.acidForm);
 
                 if (defaultStock) setSelectedStockId(defaultStock.id);
             }
         }
-    }, [buffer, method, stocks, selectedStockId]);
+    }, [buffer, method, adjustmentStocks, selectedStockId]);
 
     // Export State
     const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
@@ -209,10 +205,10 @@ export default function BufferCalculator() {
             // It's a volume of a stock.
             // We can add it as a "Stock" with "Dilution" or just a component with calculated target conc.
             // Target Conc in final volume = (Vol_adj * Conc_adj) / Vol_final
-            const adjStock = stocks.find(s => s.name === result.adjuster!.concName); // heuristic match or pass ID in result
+            const adjStock = adjustmentStocks.find(s => s.name === result.adjuster!.concName); // heuristic match or pass ID in result
             // Actually result.adjuster.concName is just the name. 
             // We know `selectedStockId`.
-            const stock = stocks.find(s => s.id === selectedStockId);
+            const stock = adjustmentStocks.find(s => s.id === selectedStockId);
             
             if (stock) {
                 // M1V1 = M2V2 -> M2 = (M1*V1)/V2
@@ -280,7 +276,7 @@ export default function BufferCalculator() {
             // We start with ONE component (Total Molarity) and add strong adjuster.
 
             let startComp: { name: string, mw: number, formula: string } | null = null;
-            let adjusterComp: StockSolution | undefined = stocks.find(s => s.id === selectedStockId) as StockSolution | undefined;
+            let adjusterComp: StockSolution | undefined = adjustmentStocks.find(s => s.id === selectedStockId) as StockSolution | undefined;
             let requiredMolesAdjuster = 0;
 
             if (!adjusterComp) return null;
@@ -312,7 +308,7 @@ export default function BufferCalculator() {
                 adjuster: { name: adjusterComp.name, vol: adjusterVolL, concName: adjusterComp.name }
             };
         }
-    }, [buffer, method, targetPH, totalVol, volUnit, totalConc, concUnit, stocks, selectedStockId]);
+    }, [buffer, method, targetPH, totalVol, volUnit, totalConc, concUnit, adjustmentStocks, selectedStockId]);
 
 
     return (
@@ -446,7 +442,7 @@ export default function BufferCalculator() {
                                     onChange={(e) => setSelectedStockId(e.target.value)}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                 >
-                                    {stocks.filter(s => {
+                                    {adjustmentStocks.filter(s => {
                                         // Only show stocks that are compatible with available buffer forms
                                         if (s.type === 'acid' && !buffer.baseForm) return false;
                                         if (s.type === 'base' && !buffer.acidForm) return false;
@@ -629,13 +625,13 @@ export default function BufferCalculator() {
                                 </div>
                                 <div className="p-6 space-y-4">
                                     <div className="space-y-2">
-                                        {stocks.map((stock, idx) => (
+                                        {adjustmentStocks.map((stock, idx) => (
                                             <div key={stock.id} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
                                                 <div className="flex flex-col items-center gap-1">
                                                     <button
                                                         onClick={() => {
                                                             // Toggle Acid/Base
-                                                            updateStock(stock.id, { type: stock.type === 'acid' ? 'base' : 'acid' });
+                                                            updateAdjustmentStock(stock.id, { type: stock.type === 'acid' ? 'base' : 'acid' });
                                                         }}
                                                         className={`p-2 rounded-lg transition-colors ${stock.type === 'acid' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}
                                                         title="Click to toggle Acid/Base"
@@ -651,7 +647,7 @@ export default function BufferCalculator() {
                                                         value={stock.name}
                                                         onChange={(e) => {
                                                             const val = e.target.value;
-                                                            const updates: any = { name: val };
+                                                            const updates: Partial<AdjustmentStock> = { name: val };
 
                                                             // Simple Auto-detection
                                                             const lower = val.toLowerCase();
@@ -661,7 +657,7 @@ export default function BufferCalculator() {
                                                                 updates.type = 'base';
                                                             }
 
-                                                            updateStock(stock.id, updates);
+                                                            updateAdjustmentStock(stock.id, updates);
                                                         }}
                                                         className="bg-transparent border-none text-sm font-bold text-white focus:ring-0 w-full"
                                                     />
@@ -672,7 +668,7 @@ export default function BufferCalculator() {
                                                             value={stock.concM ?? ""}
                                                             onChange={(e) => {
                                                                 const val = parseFloat(e.target.value);
-                                                                updateStock(stock.id, { concM: isNaN(val) ? undefined : val });
+                                                                if (!isNaN(val)) updateAdjustmentStock(stock.id, { concM: val });
                                                             }}
                                                             className="bg-transparent border-b border-zinc-700 w-12 text-center focus:outline-none"
                                                         />
@@ -680,7 +676,7 @@ export default function BufferCalculator() {
                                                     </div>
                                                 </div>
                                                 <button
-                                                    onClick={() => removeStock(stock.id)}
+                                                    onClick={() => removeAdjustmentStock(stock.id)}
                                                     className="p-2 text-zinc-600 hover:text-red-400"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
@@ -691,7 +687,7 @@ export default function BufferCalculator() {
                                     <button
                                         onClick={() => {
                                             const newId = `custom_${Date.now()}`;
-                                            addStock({ id: newId, name: "New Stock", concM: 1, type: "acid" } as any);
+                                            addAdjustmentStock({ id: newId, name: "New Stock", concM: 1, type: "acid" });
                                         }}
                                         className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-zinc-400 text-sm font-medium flex items-center justify-center gap-2"
                                     >

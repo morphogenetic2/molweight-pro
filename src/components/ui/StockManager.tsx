@@ -272,7 +272,7 @@ export function StockManager() {
                 ) : (
                     (stocks || []).map((stock) => (
                         <div key={stock.id} className="group relative p-5 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/[0.07] transition-all hover:-translate-y-1">
-                            <div className="flex justify-between items-start mb-3">
+                            <div className="flex justify-between items-center mb-3 gap-3">
                                 <div>
                                     <h3 className="font-bold text-white text-lg leading-tight">{stock.name}</h3>
                                     {stock.formula && (
@@ -286,25 +286,27 @@ export function StockManager() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 py-3 border-t border-white/5 mt-3">
-                                <div>
-                                    <span className="block text-[10px] font-bold text-zinc-500 uppercase">MW</span>
-                                    <span className="font-mono text-zinc-300 text-sm">{stock.mw}</span>
-                                </div>
-                                {stock.volume && (
+                            <div className="flex items-end justify-between gap-4 py-3 border-t border-white/5 mt-3">
+                                <div className="flex items-end gap-6">
                                     <div>
-                                        <span className="block text-[10px] font-bold text-zinc-500 uppercase">Volume</span>
-                                        <span className="font-mono text-zinc-300 text-sm">{stock.volume} {stock.volUnit}</span>
+                                        <span className="block text-[10px] font-bold text-zinc-500 uppercase">MW</span>
+                                        <span className="font-mono text-zinc-300 text-sm">{stock.mw}</span>
                                     </div>
-                                )}
+                                    {stock.volume && (
+                                        <div>
+                                            <span className="block text-[10px] font-bold text-zinc-500 uppercase">Volume</span>
+                                            <span className="font-mono text-zinc-300 text-sm">{stock.volume} {stock.volUnit}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => removeStock(stock.id)}
+                                    className="p-2 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                    aria-label={`Delete ${stock.name}`}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
                             </div>
-
-                            <button
-                                onClick={() => removeStock(stock.id)}
-                                className="absolute top-4 right-4 p-2 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </button>
                         </div>
                     ))
                 )}
