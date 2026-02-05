@@ -9,19 +9,17 @@ import {
     Settings,
     Menu,
     ChevronRight,
-    Search,
-    Printer,
-
-    Download,
     Calculator,
     LayoutGrid,
     Scale,
     HelpCircle,
     Beaker
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/store/useStore";
+import type { ActiveTab } from "@/store/storeTypes";
 
 // Component imports
 import MWCalculator from "@/components/calculators/MWCalculator";
@@ -38,7 +36,7 @@ import { SaveRecipeModal } from "@/components/ui/SaveRecipeModal";
 import { HelpView } from "@/components/ui/HelpView";
 import { StockManager } from "@/components/ui/StockManager";
 
-const TABS = [
+const TABS: Array<{ id: ActiveTab; label: string; icon: LucideIcon; desc: string }> = [
     { id: "mw", label: "Molecular Weight", icon: Table2, desc: "Calculate molar mass from chemical formulas and PubChem lookup" },
     { id: "dilution", label: "Dilution Calculator", icon: Pipette, desc: "C₁V₁ = C₂V₂ calculations for solution preparation" },
     { id: "molarity", label: "Molarity Triangle", icon: Scale, desc: "Solve for Mass, Volume, or Concentration" },
@@ -53,7 +51,6 @@ export default function Home() {
     const {
         activeTab, setActiveTab,
         setIsHistoryOpen, setIsSettingsOpen,
-        setIsRecipeLibraryOpen, setIsSaveRecipeOpen,
         activeRecipeName
     } = useStore();
     const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -131,7 +128,7 @@ export default function Home() {
                                     return (
                                         <button
                                             key={tab.id}
-                                            onClick={() => { setActiveTab(tab.id as any); closeMobileMenu(); }}
+                                            onClick={() => { setActiveTab(tab.id); closeMobileMenu(); }}
                                             className={cn(
                                                 "flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all",
                                                 isActive ? "bg-indigo-600/10 text-indigo-400" : "text-zinc-500"
@@ -198,9 +195,8 @@ export default function Home() {
                         return (
                             <button
                                 key={tab.id}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    setActiveTab(tab.id as any);
+                                onClick={() => {
+                                    setActiveTab(tab.id);
                                 }}
                                 className={cn(
                                     "group relative flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all",
@@ -288,7 +284,7 @@ export default function Home() {
                                     return (
                                         <button
                                             key={tab.id}
-                                            onClick={() => setActiveTab(tab.id as any)}
+                                            onClick={() => setActiveTab(tab.id)}
                                             className="group relative flex flex-col items-start p-6 sm:p-8 rounded-2xl sm:rounded-3xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all text-left overflow-hidden"
                                         >
                                             <div className="absolute top-0 right-0 p-32 bg-indigo-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-colors" />

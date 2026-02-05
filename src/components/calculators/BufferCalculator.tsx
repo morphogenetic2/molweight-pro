@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useStore, AdjustmentStock } from "@/store/useStore";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useStore } from "@/store/useStore";
+import type { AdjustmentStock } from "@/store/storeTypes";
 import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings2, Save } from "lucide-react";
 import { formatMass, formatVolume } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
+import { parseValueWithUnit } from "@/lib/chemistry/units";
 
 // --- Types ---
 
@@ -102,9 +104,15 @@ export default function BufferCalculator() {
     const setVolUnit = (val: "L" | "mL") => setBufferConfig({ volUnit: val });
     const setTotalConc = (val: number) => setBufferConfig({ totalConc: val });
     const setConcUnit = (val: "M" | "mM") => setBufferConfig({ concUnit: val });
-    const setSelectedStockId = (val: string) => setBufferConfig({ selectedStockId: val });
+    const setSelectedStockId = useCallback(
+        (val: string) => setBufferConfig({ selectedStockId: val }),
+        [setBufferConfig]
+    );
 
     const [isStocksConfigOpen, setIsStocksConfigOpen] = useState(false);
+    const [totalConcInput, setTotalConcInput] = useState(totalConc.toString());
+    const [totalVolInput, setTotalVolInput] = useState(totalVol.toString());
+    const [adjustmentInputs, setAdjustmentInputs] = useState<Record<string, string>>({});
 
     // --- Computed ---
     const buffer = useMemo(() => BUFFER_SYSTEMS.find(b => b.id === selectedBufferId)!, [selectedBufferId]);
@@ -131,7 +139,8 @@ export default function BufferCalculator() {
                 if (defaultStock) setSelectedStockId(defaultStock.id);
             }
         }
-    }, [buffer, method, adjustmentStocks, selectedStockId]);
+    }, [buffer, method, adjustmentStocks, selectedStockId, setSelectedStockId]);
+
 
     // Export State
     const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
@@ -205,7 +214,6 @@ export default function BufferCalculator() {
             // It's a volume of a stock.
             // We can add it as a "Stock" with "Dilution" or just a component with calculated target conc.
             // Target Conc in final volume = (Vol_adj * Conc_adj) / Vol_final
-            const adjStock = adjustmentStocks.find(s => s.name === result.adjuster!.concName); // heuristic match or pass ID in result
             // Actually result.adjuster.concName is just the name. 
             // We know `selectedStockId`.
             const stock = adjustmentStocks.find(s => s.id === selectedStockId);
@@ -241,7 +249,7 @@ export default function BufferCalculator() {
     };
 
     // Calculation Logic
-    const result = useMemo(() => {
+    const result = (() => {
         const volL = volUnit === "mL" ? totalVol / 1000 : totalVol;
         const concM = concUnit === "mM" ? totalConc / 1000 : totalConc;
 
@@ -276,7 +284,7 @@ export default function BufferCalculator() {
             // We start with ONE component (Total Molarity) and add strong adjuster.
 
             let startComp: { name: string, mw: number, formula: string } | null = null;
-            let adjusterComp: StockSolution | undefined = adjustmentStocks.find(s => s.id === selectedStockId) as StockSolution | undefined;
+            const adjusterComp: StockSolution | undefined = adjustmentStocks.find(s => s.id === selectedStockId) as StockSolution | undefined;
             let requiredMolesAdjuster = 0;
 
             if (!adjusterComp) return null;
@@ -308,7 +316,7 @@ export default function BufferCalculator() {
                 adjuster: { name: adjusterComp.name, vol: adjusterVolL, concName: adjusterComp.name }
             };
         }
-    }, [buffer, method, targetPH, totalVol, volUnit, totalConc, concUnit, adjustmentStocks, selectedStockId]);
+    })();
 
 
     return (
@@ -389,15 +397,34 @@ export default function BufferCalculator() {
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Final Concentration</label>
                             <div className="flex gap-2">
                                 <input
-                                    type="number"
-                                    min="0"
-                                    value={totalConc}
-                                    onChange={(e) => setTotalConc(parseFloat(e.target.value) || 0)}
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={totalConcInput}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        setTotalConcInput(raw);
+                                        const parsed = parseValueWithUnit(raw, ["mM", "M"]);
+                                        const num = parseFloat(parsed.value);
+                                        if (Number.isFinite(num)) setTotalConc(num);
+                                        if (parsed.unit) setConcUnit(parsed.unit as "M" | "mM");
+                                    }}
+                                    onBlur={(e) => {
+                                        const raw = e.target.value;
+                                        const parsed = parseValueWithUnit(raw, ["mM", "M"]);
+                                        const num = parseFloat(parsed.value);
+                                        if (Number.isFinite(num)) {
+                                            setTotalConc(num);
+                                            setTotalConcInput(parsed.value);
+                                        } else {
+                                            setTotalConcInput(raw.trim());
+                                        }
+                                        if (parsed.unit) setConcUnit(parsed.unit as "M" | "mM");
+                                    }}
                                     className="w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                 />
                                 <select
                                     value={concUnit}
-                                    onChange={(e) => setConcUnit(e.target.value as any)}
+                                    onChange={(e) => setConcUnit(e.target.value as "M" | "mM")}
                                     className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                 >
                                     <option value="mM" className="bg-zinc-900">mM</option>
@@ -411,15 +438,34 @@ export default function BufferCalculator() {
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Total Volume</label>
                             <div className="flex gap-2">
                                 <input
-                                    type="number"
-                                    min="0"
-                                    value={totalVol}
-                                    onChange={(e) => setTotalVol(parseFloat(e.target.value) || 0)}
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={totalVolInput}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        setTotalVolInput(raw);
+                                        const parsed = parseValueWithUnit(raw, ["L", "mL"]);
+                                        const num = parseFloat(parsed.value);
+                                        if (Number.isFinite(num)) setTotalVol(num);
+                                        if (parsed.unit) setVolUnit(parsed.unit as "L" | "mL");
+                                    }}
+                                    onBlur={(e) => {
+                                        const raw = e.target.value;
+                                        const parsed = parseValueWithUnit(raw, ["L", "mL"]);
+                                        const num = parseFloat(parsed.value);
+                                        if (Number.isFinite(num)) {
+                                            setTotalVol(num);
+                                            setTotalVolInput(parsed.value);
+                                        } else {
+                                            setTotalVolInput(raw.trim());
+                                        }
+                                        if (parsed.unit) setVolUnit(parsed.unit as "L" | "mL");
+                                    }}
                                     className="w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                 />
                                 <select
                                     value={volUnit}
-                                    onChange={(e) => setVolUnit(e.target.value as any)}
+                                    onChange={(e) => setVolUnit(e.target.value as "L" | "mL")}
                                     className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                 >
                                     <option value="L" className="bg-zinc-900">L</option>
@@ -625,7 +671,7 @@ export default function BufferCalculator() {
                                 </div>
                                 <div className="p-6 space-y-4">
                                     <div className="space-y-2">
-                                        {adjustmentStocks.map((stock, idx) => (
+                                        {adjustmentStocks.map((stock) => (
                                             <div key={stock.id} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5">
                                                 <div className="flex flex-col items-center gap-1">
                                                     <button
@@ -664,11 +710,30 @@ export default function BufferCalculator() {
                                                     <div className="flex items-center gap-2 text-xs text-zinc-500">
                                                         <span>Conc:</span>
                                                         <input
-                                                            type="number"
-                                                            value={stock.concM ?? ""}
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            value={adjustmentInputs[stock.id] ?? (stock.concM ?? "").toString()}
                                                             onChange={(e) => {
-                                                                const val = parseFloat(e.target.value);
-                                                                if (!isNaN(val)) updateAdjustmentStock(stock.id, { concM: val });
+                                                                const raw = e.target.value;
+                                                                setAdjustmentInputs((prev) => ({ ...prev, [stock.id]: raw }));
+                                                                const parsed = parseValueWithUnit(raw, ["M", "mM"]);
+                                                                let val = parseFloat(parsed.value);
+                                                                if (Number.isFinite(val)) {
+                                                                    if (parsed.unit === "mM") val = val / 1000;
+                                                                    updateAdjustmentStock(stock.id, { concM: val });
+                                                                }
+                                                            }}
+                                                            onBlur={(e) => {
+                                                                const raw = e.target.value;
+                                                                const parsed = parseValueWithUnit(raw, ["M", "mM"]);
+                                                                let val = parseFloat(parsed.value);
+                                                                if (Number.isFinite(val)) {
+                                                                    if (parsed.unit === "mM") val = val / 1000;
+                                                                    updateAdjustmentStock(stock.id, { concM: val });
+                                                                    setAdjustmentInputs((prev) => ({ ...prev, [stock.id]: val.toString() }));
+                                                                } else {
+                                                                    setAdjustmentInputs((prev) => ({ ...prev, [stock.id]: raw.trim() }));
+                                                                }
                                                             }}
                                                             className="bg-transparent border-b border-zinc-700 w-12 text-center focus:outline-none"
                                                         />

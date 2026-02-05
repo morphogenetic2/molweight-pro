@@ -45,7 +45,7 @@ export function parseFormula(formula: string): Composition {
                 const top = stack.pop();
                 if (!top) throw new Error("Unbalanced parentheses/brackets");
 
-                let next = tokens[i + 1];
+                const next = tokens[i + 1];
                 let groupMult = 1;
                 if (next && /^\d+$/.test(next)) {
                     groupMult = parseInt(next);
@@ -61,7 +61,7 @@ export function parseFormula(formula: string): Composition {
                     throw new Error(`Unknown element: ${t}`);
                 }
 
-                let next = tokens[i + 1];
+                const next = tokens[i + 1];
                 let count = 1;
                 if (next && /^\d+$/.test(next)) {
                     count = parseInt(next);
@@ -143,7 +143,6 @@ export function formatConcentration(val: number | string, unit: string): string 
             return n.toString();
     }
 }
-
 
 
 

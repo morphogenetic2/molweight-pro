@@ -1,10 +1,9 @@
 "use client";
 
 import { useStore } from "@/store/useStore";
-import { DEFAULT_RECIPES, Recipe } from "@/lib/recipes";
-import { X, Book, Trash2, ChevronRight, Info, Plus } from "lucide-react";
+import { DEFAULT_RECIPES } from "@/lib/recipes";
+import { X, Book, Trash2, ChevronRight, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FormulaBadge } from "./FormulaBadge";
 
 export function RecipeLibrary() {
     const {

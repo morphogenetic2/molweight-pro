@@ -7,7 +7,6 @@ import {
     Calculator,
     FlaskConical,
     BookOpen,
-    ArrowRight,
     Beaker
 } from "lucide-react";
 import 'katex/dist/katex.min.css';
@@ -28,7 +27,7 @@ export function HelpView() {
                             <strong className="text-white">Chemical Formulas:</strong> Type standard formulas like <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">H2SO4</code> or <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">CuSO4·5H2O</code>. You can use * and . to indicate hydration states.
                         </li>
                         <li>
-                            <strong className="text-white">Common Names:</strong> Type a name like "Aspirin" or "Ethanol". The app uses PubChem to find the structure and weight.
+                            <strong className="text-white">Common Names:</strong> Type a name like &quot;Aspirin&quot; or &quot;Ethanol&quot;. The app uses PubChem to find the structure and weight.
                         </li>
                         <li>
                             <strong className="text-white">History:</strong> Successful calculations are saved (clock icon) for quick access later.
@@ -103,8 +102,8 @@ export function HelpView() {
                             <strong>Goal:</strong> How many grams of NaCl for 500 mL of 1 M solution?
                         </p>
                         <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
-                            <li>Set "Solve for: Mass"</li>
-                            <li>MW = 58.44 g/mol (or type "NaCl" to auto-lookup)</li>
+                            <li>Set &quot;Solve for: Mass&quot;</li>
+                            <li>MW = 58.44 g/mol (or type &quot;NaCl&quot; to auto-lookup)</li>
                             <li>Concentration = 1 M, Volume = 500 mL</li>
                             <li><strong>Result:</strong> Mass = 29.22 g</li>
                         </ol>
@@ -134,11 +133,11 @@ export function HelpView() {
                     <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                         <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example: 50 mM Tris pH 7.5</h4>
                         <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
-                            <li>Select "Tris" buffer, Method: "Salt Mix"</li>
+                            <li>Select &quot;Tris&quot; buffer, Method: &quot;Salt Mix&quot;</li>
                             <li>Target pH = 7.5, Concentration = 50 mM, Volume = 1 L</li>
-                            <li>Click "Calculate"</li>
+                            <li>Click &quot;Calculate&quot;</li>
                             <li><strong>Result:</strong> ~2.42 g Tris Base + ~4.14 g Tris HCl</li>
-                            <li>Click "Export to Recipe Builder" to transfer</li>
+                            <li>Click &quot;Export to Recipe Builder&quot; to transfer</li>
                         </ol>
                     </div>
                 </div>

@@ -1,59 +1,46 @@
 "use client";
 
 import { useState } from "react";
-import { useStore, Stock } from "@/store/useStore";
-import { Plus, Search, Trash2, Beaker, FileSpreadsheet, Loader2, Save, AlertTriangle } from "lucide-react";
+import { useStore } from "@/store/useStore";
+import type { Stock } from "@/store/storeTypes";
+import { Plus, Trash2, FileSpreadsheet, Save, AlertTriangle } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
-import { calculateMw, parseFormula, formatConcentration } from "@/lib/parser";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { motion, AnimatePresence } from "framer-motion";
+import { parseValueWithUnit } from "@/lib/chemistry/units";
 
 export function StockManager() {
-    const { stocks, addStock, updateStock, removeStock } = useStore();
+    const { stocks, addStock, removeStock } = useStore();
     const [isCreating, setIsCreating] = useState(false);
 
     // New Stock Form State
     const [newName, setNewName] = useState("");
-    const [newFormula, setNewFormula] = useState("");
-    const [newMw, setNewMw] = useState("");
     const [newConc, setNewConc] = useState("");
     const [newUnit, setNewUnit] = useState("M");
     const [newVol, setNewVol] = useState("");
     const [newVolUnit, setNewVolUnit] = useState("mL");
-    const [isSearching, setIsSearching] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
 
     // Warning Modal State
     const [showWarning, setShowWarning] = useState(false);
 
-    const handleLookup = async () => {
-        if (!newName) return;
-        setIsSearching(true);
-        try {
-            const res = await lookupPubChem(newName);
-            if (res) {
-                setNewName(res.name || newName);
-                setNewFormula(res.formula || "");
-                setNewMw(res.mw?.toFixed(2) || "");
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsSearching(false);
-        }
-    };
-
     const saveStock = (mw: number, formula: string) => {
+        const concParsed = parseValueWithUnit(newConc, ["M", "mM", "μM", "mg/mL", "g/L", "pct"]);
+        const volParsed = parseValueWithUnit(newVol, ["mL", "L", "μL"]);
+        const concentration = concParsed.value;
+        const unit = concParsed.unit ?? newUnit;
+        const volume = volParsed.value;
+        const volUnit = volParsed.unit ?? newVolUnit;
+
         const newStock: Stock = {
             id: Math.random().toString(36).substr(2, 9),
             name: newName,
             formula: formula,
             mw: mw,
             conc: 0,
-            concentration: newConc,
-            unit: newUnit,
-            volume: newVol,
-            volUnit: newVolUnit,
+            concentration: concentration,
+            unit: unit,
+            volume: volume,
+            volUnit: volUnit,
             dateAdded: new Date().toISOString()
         };
 
@@ -64,14 +51,11 @@ export function StockManager() {
         setNewConc("");
         setNewVol("");
         setIsCreating(false);
-        setIsSaving(false);
         setShowWarning(false);
     };
 
     const handleCreate = async () => {
         if (!newName || !newConc) return;
-
-        setIsSaving(true);
 
         try {
             // PubChem Lookup
@@ -83,7 +67,6 @@ export function StockManager() {
             } else {
                 // Failed - Show Warning
                 setShowWarning(true);
-                // Note: We stay in isSaving=true state until user decides
             }
         } catch (error) {
             console.error("Auto-lookup failed:", error);
@@ -102,11 +85,10 @@ export function StockManager() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                            onClick={() => {
-                                setShowWarning(false);
-                                setIsSaving(false);
-                            }}
-                        />
+                                onClick={() => {
+                                    setShowWarning(false);
+                                }}
+                            />
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -121,7 +103,7 @@ export function StockManager() {
                                 <div>
                                     <h3 className="text-xl font-bold text-white mb-2">Chemical Not Found</h3>
                                     <p className="text-zinc-400 text-sm">
-                                        We couldn't find details for <span className="text-white font-bold">"{newName}"</span> in the database.
+                                        We couldn&apos;t find details for <span className="text-white font-bold">&quot;{newName}&quot;</span> in the database.
                                     </p>
                                     <p className="text-zinc-500 text-xs mt-3 bg-white/5 p-3 rounded-lg border border-white/5">
                                         If you save anyway, molecular weight will be set to 0. This may prevent proper calculation in the Recipe Builder.
@@ -132,7 +114,6 @@ export function StockManager() {
                                     <button
                                         onClick={() => {
                                             setShowWarning(false);
-                                            setIsSaving(false);
                                         }}
                                         className="flex-1 py-2.5 rounded-xl border border-white/10 text-zinc-400 hover:bg-white/5 hover:text-white transition-colors text-sm font-bold"
                                     >
@@ -158,7 +139,7 @@ export function StockManager() {
                         Stock Solutions Database
                     </h2>
                     <p className="text-zinc-400 text-sm mt-1">
-                        Manage your lab's inventory of stock solutions.
+                        Manage your lab&apos;s inventory of stock solutions.
                     </p>
                 </div>
                 <button
@@ -197,9 +178,25 @@ export function StockManager() {
                                         <label className="text-xs font-bold text-zinc-500 uppercase">Concentration</label>
                                         <div className="flex gap-2">
                                             <input
-                                                type="number"
+                                                type="text"
+                                                inputMode="decimal"
                                                 value={newConc}
-                                                onChange={(e) => setNewConc(e.target.value)}
+                                                onChange={(e) => {
+                                                    const raw = e.target.value;
+                                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "mg/mL", "g/L", "pct"]);
+                                                    setNewConc(raw);
+                                                    if (parsed.unit) setNewUnit(parsed.unit);
+                                                }}
+                                                onBlur={(e) => {
+                                                    const raw = e.target.value;
+                                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "mg/mL", "g/L", "pct"]);
+                                                    if (parsed.unit) setNewUnit(parsed.unit);
+                                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                                        setNewConc(parsed.value);
+                                                    } else {
+                                                        setNewConc(raw.trim());
+                                                    }
+                                                }}
                                                 placeholder="1.0"
                                                 className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white"
                                             />
@@ -222,9 +219,25 @@ export function StockManager() {
                                         <label className="text-xs font-bold text-zinc-500 uppercase">Available Volume (Optional)</label>
                                         <div className="flex gap-2">
                                             <input
-                                                type="number"
+                                                type="text"
+                                                inputMode="decimal"
                                                 value={newVol}
-                                                onChange={(e) => setNewVol(e.target.value)}
+                                                onChange={(e) => {
+                                                    const raw = e.target.value;
+                                                    const parsed = parseValueWithUnit(raw, ["mL", "L", "μL"]);
+                                                    setNewVol(raw);
+                                                    if (parsed.unit) setNewVolUnit(parsed.unit);
+                                                }}
+                                                onBlur={(e) => {
+                                                    const raw = e.target.value;
+                                                    const parsed = parseValueWithUnit(raw, ["mL", "L", "μL"]);
+                                                    if (parsed.unit) setNewVolUnit(parsed.unit);
+                                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                                        setNewVol(parsed.value);
+                                                    } else {
+                                                        setNewVol(raw.trim());
+                                                    }
+                                                }}
                                                 placeholder="500"
                                                 className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white"
                                             />

@@ -2,16 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
+import type { Solute } from "@/store/storeTypes";
 import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker, Printer } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
+import { parseValueWithUnit } from "@/lib/chemistry/units";
 import { lookupPubChem } from "@/lib/api";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 
-function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { solute: any; isChecklist: boolean; onToggleCheck: (id: string) => void; view?: 'table' | 'card' }) {
+function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { solute: Solute; isChecklist: boolean; onToggleCheck: (id: string) => void; view?: 'table' | 'card' }) {
     const { bufferVolume, bufferUnit, removeSolute, updateSolute } = useStore();
     const [isSearching, setIsSearching] = useState(false);
 
@@ -33,7 +35,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                         updateSolute(solute.id, { mw: mw.toFixed(2), formula: query });
                         setIsSearching(false);
                         return;
-                    } catch (e) { }
+                } catch { }
                 }
 
                 const res = await lookupPubChem(query);
@@ -52,7 +54,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
         };
 
         triggerLookup();
-    }, [debouncedName, solute.id, updateSolute]);
+    }, [debouncedName, solute.id, solute.formula, updateSolute]);
 
     const calculateMass = () => {
         const mw = parseFloat(solute.mw);
@@ -88,7 +90,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
             };
 
             let c1Base = normalizeToBase(c1, u1);
-            let c2Base = normalizeToBase(c2, u2);
+            const c2Base = normalizeToBase(c2, u2);
 
             if (domain1 !== domain2 && domain1 && domain2) {
                 if (isNaN(mw) || mw <= 0) return "Mw?";
@@ -202,14 +204,24 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                     </div>
                 </td>
                 <td className="px-6 py-4 align-top">
-                    <input
-                        type="number"
-                        placeholder="0.00"
-                        value={solute.mw}
-                        disabled={solute.isStock}
-                        onChange={(e) => updateSolute(solute.id, { mw: e.target.value })}
-                        className={`w-24 bg-transparent border-transparent p-0 focus:ring-0 text-sm ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    />
+                        <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            value={solute.mw}
+                            disabled={solute.isStock}
+                            onChange={(e) => updateSolute(solute.id, { mw: e.target.value })}
+                            onBlur={(e) => {
+                                const raw = e.target.value;
+                                const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
+                                if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                    updateSolute(solute.id, { mw: parsed.value });
+                                } else {
+                                    updateSolute(solute.id, { mw: raw.trim() });
+                                }
+                            }}
+                            className={`w-24 bg-transparent border-transparent p-0 focus:ring-0 text-sm ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        />
                 </td>
                 <td className="px-6 py-4 align-top">
                     <div className="flex items-center gap-2">
@@ -220,9 +232,25 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                         ) : (
                             <>
                                 <input
-                                    type="number"
+                                    type="text"
+                                    inputMode="decimal"
                                     value={solute.conc}
-                                    onChange={(e) => updateSolute(solute.id, { conc: e.target.value })}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct", "dil"]);
+                                        updateSolute(solute.id, { conc: raw });
+                                        if (parsed.unit) updateSolute(solute.id, { unit: parsed.unit });
+                                    }}
+                                    onBlur={(e) => {
+                                        const raw = e.target.value;
+                                        const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct", "dil"]);
+                                        if (parsed.unit) updateSolute(solute.id, { unit: parsed.unit });
+                                        if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                            updateSolute(solute.id, { conc: parsed.value });
+                                        } else {
+                                            updateSolute(solute.id, { conc: raw.trim() });
+                                        }
+                                    }}
                                     className="w-20 bg-transparent border-transparent p-0 focus:ring-0 text-sm"
                                 />
                                 <select
@@ -307,10 +335,20 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                 <div>
                     <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">MW</label>
                     <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         value={solute.mw}
                         disabled={solute.isStock}
                         onChange={(e) => updateSolute(solute.id, { mw: e.target.value })}
+                        onBlur={(e) => {
+                            const raw = e.target.value;
+                            const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
+                            if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                updateSolute(solute.id, { mw: parsed.value });
+                            } else {
+                                updateSolute(solute.id, { mw: raw.trim() });
+                            }
+                        }}
                         className="bg-transparent text-sm w-full p-0 border-none"
                     />
                 </div>
@@ -318,9 +356,25 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                     <label className="block text-[10px] font-bold text-zinc-500 uppercase mb-1">Target</label>
                     <div className="flex items-center gap-1">
                         <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={solute.conc}
-                            onChange={(e) => updateSolute(solute.id, { conc: e.target.value })}
+                            onChange={(e) => {
+                                const raw = e.target.value;
+                                const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct", "dil"]);
+                                updateSolute(solute.id, { conc: raw });
+                                if (parsed.unit) updateSolute(solute.id, { unit: parsed.unit });
+                            }}
+                            onBlur={(e) => {
+                                const raw = e.target.value;
+                                const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct", "dil"]);
+                                if (parsed.unit) updateSolute(solute.id, { unit: parsed.unit });
+                                if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                    updateSolute(solute.id, { conc: parsed.value });
+                                } else {
+                                    updateSolute(solute.id, { conc: raw.trim() });
+                                }
+                            }}
                             className="bg-transparent text-sm w-12 p-0 border-none"
                         />
                         <select
@@ -365,7 +419,7 @@ export default function BufferBuilder() {
     const [isStockSelectOpen, setIsStockSelectOpen] = useState(false);
 
     const toggleCheck = useCallback((id: string) => {
-        updateSolute(id, { done: !solutes.find((s: any) => s.id === id)?.done });
+        updateSolute(id, { done: !solutes.find((s) => s.id === id)?.done });
     }, [solutes, updateSolute]);
 
     const handleExport = useCallback(() => {
@@ -391,28 +445,11 @@ export default function BufferBuilder() {
         doc.text(sanitize(`Total Volume: ${bufferVolume} ${bufferUnit}`), 14, 38);
 
         // Prepare table data
-        const tableData = solutes.map((s: any) => {
-            // Calculate detailed mass for the row
-            let amount = "-";
-            const mw = parseFloat(s.mw);
-            const conc = parseFloat(s.conc);
-            const vol = parseFloat(bufferVolume);
-
-            if (!isNaN(conc) && !isNaN(vol)) {
-                let volL = vol;
-                if (bufferUnit === "mL") volL = vol / 1000;
-                if (bufferUnit === "μL") volL = vol / 1000000;
-
-                if (s.isStock && s.stockConc) {
-                    // Logic for stock calculation reuse (simplified or copied)
-                    // ...
-                }
-            }
-            
+        const tableData = solutes.map((s: Solute) => {
             // Helper to calc mass for a solute object
-            const getAmountString = (solute: any) => {
-                const mw = parseFloat(solute.mw);
-                const conc = parseFloat(solute.conc);
+            const getAmountString = (solute: Solute) => {
+                const mw = parseFloat(String(solute.mw ?? ""));
+                const conc = parseFloat(String(solute.conc ?? ""));
                 const vol = parseFloat(bufferVolume);
                 
                 if (isNaN(conc) || isNaN(vol)) return "-";
@@ -430,8 +467,8 @@ export default function BufferBuilder() {
                      }
                      // If units mismatch, it's hard. But likely the user saw it on screen. 
                      // Let's try to handle M/mM at least
-                     const isMolar = (u: any) => ['M', 'mM', 'μM'].includes(u);
-                     if (isMolar(solute.unit) && isMolar(solute.stockUnit)) {
+                     const isMolar = (u: string) => ['M', 'mM', 'μM'].includes(u);
+                     if (isMolar(solute.unit) && solute.stockUnit && isMolar(solute.stockUnit)) {
                         let c1Base = c1; 
                         if (solute.stockUnit === 'mM') c1Base /= 1000;
                         if (solute.stockUnit === 'μM') c1Base /= 1e6;
@@ -458,7 +495,7 @@ export default function BufferBuilder() {
                 return "??";
             };
 
-            amount = getAmountString(s);
+            const amount = getAmountString(s);
 
             let name = s.name;
             if (s.isStock) {
@@ -514,9 +551,25 @@ export default function BufferBuilder() {
                     <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2">Total Solution Volume</label>
                     <div className="flex gap-2">
                         <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={bufferVolume}
-                            onChange={(e) => setBufferVolume(e.target.value)}
+                            onChange={(e) => {
+                                const raw = e.target.value;
+                                const parsed = parseValueWithUnit(raw, ["mL", "μL", "L"]);
+                                setBufferVolume(raw);
+                                if (parsed.unit) setBufferUnit(parsed.unit);
+                            }}
+                            onBlur={(e) => {
+                                const raw = e.target.value;
+                                const parsed = parseValueWithUnit(raw, ["mL", "μL", "L"]);
+                                if (parsed.unit) setBufferUnit(parsed.unit);
+                                if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                    setBufferVolume(parsed.value);
+                                } else {
+                                    setBufferVolume(raw.trim());
+                                }
+                            }}
                             className="flex-1 sm:w-32 text-sm"
                         />
                         <select
@@ -575,7 +628,7 @@ export default function BufferBuilder() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                        {solutes.map((solute: any) => (
+                        {solutes.map((solute) => (
                             <SoluteRow
                                 key={solute.id}
                                 solute={solute}
@@ -589,7 +642,7 @@ export default function BufferBuilder() {
 
                 {/* Mobile View Placeholder */}
                 <div className="sm:hidden flex flex-col">
-                    {solutes.map((solute: any) => (
+                    {solutes.map((solute) => (
                         <SoluteRow
                             key={solute.id}
                             solute={solute}

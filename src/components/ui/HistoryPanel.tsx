@@ -1,14 +1,14 @@
 "use client";
 
 import { useStore } from "@/store/useStore";
-import { X, Clock, ChevronRight, FlaskConical, ExternalLink } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { X, Clock, ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
 import { FormulaBadge } from "../ui/FormulaBadge";
 
 export function HistoryPanel() {
     const {
         history, isHistoryOpen, setIsHistoryOpen,
-        setMwResult, setMwInput, setDilution, setActiveTab
+        setMwResult, setMwInput, setActiveTab
     } = useStore();
 
     if (!isHistoryOpen) return null;

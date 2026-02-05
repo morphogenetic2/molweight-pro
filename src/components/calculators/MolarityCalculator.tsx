@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useStore } from "@/store/useStore";
-import { Search, Loader2, Scale, Beaker, Pipette, Atom, Calculator, ArrowRightLeft, Lock } from "lucide-react";
+import { Search, Loader2, Scale, Beaker, Pipette, Atom, ArrowRightLeft, Lock } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
 import { parseFormula, calculateMw } from "@/lib/parser";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { Solver, denormalize } from "@/lib/chemistry/converter";
 import { MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "../ui/ValueUnitInput";
+import type { MolarityState } from "@/store/storeTypes";
+import Image from "next/image";
 
 // Group units for dropdowns
 const MASS_OPTS = Object.keys(MASS_UNITS);
@@ -27,7 +29,7 @@ export default function MolarityCalculator() {
     const [lookupResult, setLookupResult] = useState<{ name?: string, formula?: string, cid?: number } | null>(null);
 
     // --- Lookup Logic ---
-    const handleLookup = async (e?: React.FormEvent) => {
+    const handleLookup = async (e?: React.FormEvent<HTMLFormElement>) => {
         e?.preventDefault();
         const query = searchTerm.trim();
         if (!query) return;
@@ -44,7 +46,7 @@ export default function MolarityCalculator() {
                     setLookupResult({ formula: query });
                     setSearching(false);
                     return;
-                } catch (e) { }
+                } catch { }
             }
 
             const res = await lookupPubChem(query);
@@ -52,8 +54,8 @@ export default function MolarityCalculator() {
                 setMolarityState({ mw: res.mw });
                 setLookupResult({ name: res.name, formula: res.formula, cid: res.cid });
             }
-        } catch (err) {
-            console.error(err);
+        } catch (error) {
+            console.error(error);
         } finally {
             setSearching(false);
         }
@@ -75,11 +77,14 @@ export default function MolarityCalculator() {
             return parseFloat(n.toPrecision(6)).toString();
         };
 
-        const updateState = (key: string, val: number) => {
+        type NumericField = "mw" | "mass" | "volume" | "concentration";
+        const updateState = (key: NumericField, val: number) => {
             const newVal = fmt(val);
             // Avoid infinite loops by checking equality
-            if (parseFloat(molarityState[key as keyof typeof molarityState] as any) !== parseFloat(newVal)) {
-                setMolarityState({ [key]: newVal });
+            const current = molarityState[key];
+            const currentNum = typeof current === "number" ? current : parseFloat(current);
+            if (currentNum !== parseFloat(newVal)) {
+                setMolarityState({ [key]: newVal } as Partial<MolarityState>);
             }
         };
 
@@ -119,22 +124,18 @@ export default function MolarityCalculator() {
                 // If unit is g/L, then Mass = g/L * L. MW cancels out.
                 // So we check if concUnit is molar.
                 if (MOLAR_UNITS[concUnit]) {
-                    const massG = Solver.solveMass(parseFloat(mass), massUnit, 0, 'L', 0); // Hacky way to get grams? No.
-                    // Let's us denormalize/normalize manually.
-                    // Wait, Solver doesn't expose normalize.
-                    // I need to import normalize? No, I created 'denormalize' but not 'normalize' export?
-                    // I exported generic 'normalize' in converter.ts.
+                    // NOTE: MW solving for mass concentration isn't supported yet.
                 }
             }
             // Skipping MW solvability in this pass to minimize risk, users rarely solve for MW here (it's usually an input).
         }
 
-    }, [molarityState]);
+    }, [molarityState, setMolarityState]);
 
-    const update = (field: string, val: string) => setMolarityState({ [field]: val });
-    const updateUnit = (field: string, val: string) => setMolarityState({ [field]: val });
+    const update = (field: keyof MolarityState, val: string) => setMolarityState({ [field]: val } as Partial<MolarityState>);
+    const updateUnit = (field: keyof MolarityState, val: string) => setMolarityState({ [field]: val } as Partial<MolarityState>);
 
-    const isTarget = (t: string) => molarityState.target === t;
+    const isTarget = (t: MolarityState["target"]) => molarityState.target === t;
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -167,7 +168,15 @@ export default function MolarityCalculator() {
                 </div>
                 {lookupResult && (
                     <div className="glass-card px-6 py-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                        {lookupResult.cid && <img src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${lookupResult.cid}/PNG?record_type=2d&image_size=50x50`} className="h-10 w-10 object-contain opacity-80" />}
+                        {lookupResult.cid && (
+                            <Image
+                                src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${lookupResult.cid}/PNG?record_type=2d&image_size=50x50`}
+                                alt={lookupResult.name || lookupResult.formula || "Structure"}
+                                width={50}
+                                height={50}
+                                className="h-10 w-10 object-contain opacity-80"
+                            />
+                        )}
                         <div className="text-sm">
                             <span className="text-zinc-400">Result: </span>
                             <span className="text-white font-medium">{lookupResult.name || lookupResult.formula}</span>

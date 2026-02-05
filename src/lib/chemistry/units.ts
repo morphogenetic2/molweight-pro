@@ -67,3 +67,46 @@ export function getUnitType(unit: string): UnitType | 'unknown' {
     if (unit in PERCENT_UNITS) return 'percent';
     return 'unknown';
 }
+
+const normalizeUnitKey = (unit: string): string =>
+    unit
+        .trim()
+        .replace(/µ/g, "μ")
+        .replace(/u/g, "μ")
+        .replace(/\s+/g, "")
+        .toLowerCase();
+
+const matchUnitToken = (token: string, allowedUnits: string[]): string | undefined => {
+    const normalizedToken = normalizeUnitKey(token);
+    if (!normalizedToken) return undefined;
+
+    if ((normalizedToken === "%" || normalizedToken === "percent" || normalizedToken === "pct")
+        && allowedUnits.includes("pct")) {
+        return "pct";
+    }
+
+    if ((normalizedToken === "x" || normalizedToken === "dil" || normalizedToken === "dilution")
+        && allowedUnits.includes("dil")) {
+        return "dil";
+    }
+
+    return allowedUnits.find((unit) => normalizeUnitKey(unit) === normalizedToken);
+};
+
+export function parseValueWithUnit(input: string, allowedUnits: string[]): { value: string; unit?: string } {
+    const raw = input.trim();
+    if (!raw) return { value: "" };
+
+    const match = raw.match(
+        /^([-+]?(\d+(\.\d+)?|\.\d+)([eE][-+]?\d+)?)\s*([^\d\s].*)?$/
+    );
+
+    if (!match) {
+        return { value: raw };
+    }
+
+    const value = match[1];
+    const unitToken = match[5]?.trim();
+    const unit = unitToken ? matchUnitToken(unitToken, allowedUnits) : undefined;
+    return { value, unit };
+}

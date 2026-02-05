@@ -1,6 +1,6 @@
 "use client";
 
-import { getUnitLabel } from "@/lib/chemistry/units";
+import { getUnitLabel, parseValueWithUnit } from "@/lib/chemistry/units";
 
 interface ValueUnitInputProps {
     value: string | number;
@@ -34,9 +34,29 @@ export function ValueUnitInput({
             {label && <label className="text-xs font-bold text-zinc-500 uppercase">{label}</label>}
             <div className={`flex items-center gap-2 ${disabled ? 'opacity-50' : ''}`}>
                 <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={value}
-                    onChange={(e) => onValueChange(e.target.value)}
+                    onChange={(e) => {
+                        const raw = e.target.value;
+                        const parsed = parseValueWithUnit(raw, options);
+                        onValueChange(raw);
+                        if (parsed.unit && parsed.unit !== unit) {
+                            onUnitChange(parsed.unit);
+                        }
+                    }}
+                    onBlur={(e) => {
+                        const raw = e.target.value;
+                        const parsed = parseValueWithUnit(raw, options);
+                        if (parsed.unit && parsed.unit !== unit) {
+                            onUnitChange(parsed.unit);
+                        }
+                        if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                            onValueChange(parsed.value);
+                        } else {
+                            onValueChange(raw.trim());
+                        }
+                    }}
                     disabled={disabled || readOnlyInput}
                     placeholder={placeholder}
                     className={`min-w-0 flex-1 bg-transparent border-none text-lg font-mono focus:ring-0 p-0 text-white ${inputClassName} ${readOnlyInput ? 'cursor-default' : ''}`}

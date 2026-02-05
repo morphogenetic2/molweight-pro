@@ -3,16 +3,17 @@
 import { useState } from "react";
 import { Search, Loader2, AlertCircle } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { parseFormula, calculateMw } from "@/lib/parser";
+import { parseFormula, calculateMw, ChemicalData } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
+import Image from "next/image";
 
 export default function MWCalculator() {
     const { mwInput, setMwInput, mwResult, setMwResult, addToHistory } = useStore();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleCalculate = async (e?: React.FormEvent) => {
+    const handleCalculate = async (e?: React.FormEvent<HTMLFormElement>) => {
         e?.preventDefault();
         if (!mwInput.trim()) return;
 
@@ -25,16 +26,16 @@ export default function MWCalculator() {
                 try {
                     const comp = parseFormula(mwInput);
                     const mw = calculateMw(comp);
-                    const result = {
+                    const result: ChemicalData = {
                         mw,
                         formula: mwInput,
                         composition: comp,
                     };
-                    setMwResult(result as any);
-                    addToHistory(result as any);
+                    setMwResult(result);
+                    addToHistory(result);
                     setLoading(false);
                     return;
-                } catch (e) { }
+                } catch { }
             }
 
             // 2. Try PubChem
@@ -42,19 +43,19 @@ export default function MWCalculator() {
             if (res) {
                 const comp = parseFormula(res.formula!);
                 // Create a clean, serializable object
-                const result = {
+                const result: ChemicalData = {
                     mw: Number(res.mw),
                     formula: String(res.formula),
                     name: res.name ? String(res.name) : undefined,
                     cid: res.cid ? Number(res.cid) : undefined,
                     composition: comp
                 };
-                setMwResult(result as any);
-                addToHistory(result as any);
+                setMwResult(result);
+                addToHistory(result);
             } else {
                 setError("Could not find chemical or parse formula.");
             }
-        } catch (err) {
+        } catch {
             setError("An error occurred during calculation.");
         } finally {
             setLoading(false);
@@ -127,10 +128,12 @@ export default function MWCalculator() {
                     <section className="glass-card overflow-hidden">
                         <div className="flex h-full min-h-[200px] items-center justify-center p-4">
                             {mwResult.cid ? (
-                                <img
+                                <Image
                                     src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${mwResult.cid}/PNG`}
                                     alt={mwResult.name || mwResult.formula}
-                                    className="max-h-48 sm:max-h-64 object-contain brightness-110 contrast-125"
+                                    width={256}
+                                    height={256}
+                                    className="max-h-48 sm:max-h-64 w-auto object-contain brightness-110 contrast-125"
                                 />
                             ) : (
                                 <div className="text-center text-zinc-500 italic text-sm">

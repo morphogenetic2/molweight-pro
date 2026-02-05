@@ -1,6 +1,6 @@
 import {
     MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS,
-    getUnitType, UnitType
+    getUnitType
 } from './units';
 
 /**

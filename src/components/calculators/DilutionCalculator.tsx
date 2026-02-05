@@ -1,9 +1,9 @@
 import { useStore } from "@/store/useStore";
-import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
+import { formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
+import { parseValueWithUnit } from "@/lib/chemistry/units";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
-import { FormulaBadge } from "../ui/FormulaBadge";
 import { useState, useEffect } from "react";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 
@@ -18,6 +18,7 @@ export default function DilutionCalculator() {
     const [isStockSelectOpen, setIsStockSelectOpen] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [showVolumeWarning, setShowVolumeWarning] = useState(false);
+    const [mwInput, setMwInput] = useState(dilution.mw ? String(dilution.mw) : "");
 
     // Track the ID of the solute we just added (PERSISTED in store now)
     const linkedSoluteId = dilution.linkedSoluteId;
@@ -71,6 +72,10 @@ export default function DilutionCalculator() {
     const debouncedName = useDebounce(dilution.name, 600);
 
     useEffect(() => {
+        setMwInput(dilution.mw ? String(dilution.mw) : "");
+    }, [dilution.mw]);
+
+    useEffect(() => {
         const triggerLookup = async () => {
             const query = debouncedName.trim();
             if (!query) return;
@@ -85,7 +90,7 @@ export default function DilutionCalculator() {
                         setDilution({ mw });
                         setIsSearching(false);
                         return;
-                    } catch (e) { }
+                } catch { }
                 }
 
                 // 2. Try PubChem
@@ -214,11 +219,29 @@ export default function DilutionCalculator() {
                     <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2">Molecular Weight</label>
                     <div className="flex items-center gap-2">
                         <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             placeholder="Mw"
                             className="w-full text-sm"
-                            value={dilution.mw || ""}
-                            onChange={(e) => setDilution({ mw: parseFloat(e.target.value) || 0 })}
+                            value={mwInput}
+                            onChange={(e) => {
+                                const raw = e.target.value;
+                                setMwInput(raw);
+                                const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
+                                const num = parseFloat(parsed.value);
+                                if (Number.isFinite(num)) setDilution({ mw: num });
+                            }}
+                            onBlur={(e) => {
+                                const raw = e.target.value;
+                                const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
+                                const num = parseFloat(parsed.value);
+                                if (Number.isFinite(num)) {
+                                    setDilution({ mw: num });
+                                    setMwInput(parsed.value);
+                                } else {
+                                    setMwInput(raw.trim());
+                                }
+                            }}
                         />
                         <span className="text-zinc-500 text-[10px] sm:text-xs font-mono shrink-0">g/mol</span>
                     </div>
@@ -276,11 +299,27 @@ export default function DilutionCalculator() {
                     <div className="space-y-4">
                         <div className="flex gap-2">
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 placeholder="Conc"
                                 className="flex-1 text-sm"
                                 value={dilution.c1}
-                                onChange={(e) => setDilution({ c1: e.target.value })}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]);
+                                    setDilution({ c1: raw });
+                                    if (parsed.unit) setDilution({ u1: parsed.unit });
+                                }}
+                                onBlur={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]);
+                                    if (parsed.unit) setDilution({ u1: parsed.unit });
+                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                        setDilution({ c1: parsed.value });
+                                    } else {
+                                        setDilution({ c1: raw.trim() });
+                                    }
+                                }}
                             />
                             <select
                                 className="w-24 sm:w-32 text-xs sm:text-sm"
@@ -307,11 +346,27 @@ export default function DilutionCalculator() {
                     <div className="space-y-4">
                         <div className="flex gap-2">
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 placeholder="Target Conc (C2)"
                                 className="flex-1 text-sm"
                                 value={dilution.c2}
-                                onChange={(e) => setDilution({ c2: e.target.value })}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]);
+                                    setDilution({ c2: raw });
+                                    if (parsed.unit) setDilution({ u2: parsed.unit });
+                                }}
+                                onBlur={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]);
+                                    if (parsed.unit) setDilution({ u2: parsed.unit });
+                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                        setDilution({ c2: parsed.value });
+                                    } else {
+                                        setDilution({ c2: raw.trim() });
+                                    }
+                                }}
                             />
                             <select
                                 className="w-24 sm:w-32 text-xs sm:text-sm"
@@ -331,11 +386,27 @@ export default function DilutionCalculator() {
                         </div>
                         <div className="flex gap-2">
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 placeholder="Final Vol (V2)"
                                 className="flex-1 text-sm"
                                 value={dilution.v2}
-                                onChange={(e) => setDilution({ v2: e.target.value })}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = parseValueWithUnit(raw, ["mL", "μL", "L"]);
+                                    setDilution({ v2: raw });
+                                    if (parsed.unit) setDilution({ vu2: parsed.unit });
+                                }}
+                                onBlur={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = parseValueWithUnit(raw, ["mL", "μL", "L"]);
+                                    if (parsed.unit) setDilution({ vu2: parsed.unit });
+                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                        setDilution({ v2: parsed.value });
+                                    } else {
+                                        setDilution({ v2: raw.trim() });
+                                    }
+                                }}
                             />
                             <select
                                 className="w-20 sm:w-24 text-xs sm:text-sm"
