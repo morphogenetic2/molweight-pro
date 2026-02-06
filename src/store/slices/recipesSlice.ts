@@ -13,7 +13,15 @@ export const createRecipesSlice: StateCreator<AppState, [], [], RecipesSlice> = 
                     description,
                     totalVolume: state.bufferVolume,
                     totalUnit: state.bufferUnit,
-                    solutes: state.solutes
+                    solutes: state.solutes.map((s) => ({
+                        name: s.name,
+                        mw: String(s.mw),
+                        conc: String(s.conc),
+                        unit: s.unit,
+                        isStock: s.isStock,
+                        stockConc: s.stockConc,
+                        stockUnit: s.stockUnit
+                    }))
                 }
             ],
             isSaveRecipeOpen: false,

@@ -58,8 +58,8 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
     }, [debouncedName, solute.id, solute.formula, updateSolute]);
 
     const calculateMass = () => {
-        const mw = parseFloat(solute.mw);
-        const conc = parseFloat(solute.conc);
+        const mw = parseFloat(String(solute.mw));
+        const conc = parseFloat(String(solute.conc));
         const vol = parseFloat(bufferVolume);
 
         if (isNaN(conc) || isNaN(vol)) return "-";
@@ -70,7 +70,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
 
         if (solute.isStock && solute.stockConc) {
             const c1 = parseFloat(solute.stockConc);
-            const u1 = solute.stockUnit;
+            const u1 = solute.stockUnit || "";
             const c2 = conc;
             const u2 = solute.unit;
 
@@ -174,7 +174,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                                             </span>
                                             {solute.stockConc && (
                                                 <span className="shrink-0 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold tracking-wider text-indigo-400">
-                                                    {formatConcentration(solute.stockConc, solute.stockUnit)} {getUnitLabel(solute.stockUnit)}
+                                                    {formatConcentration(solute.stockConc, solute.stockUnit || "")} {getUnitLabel(solute.stockUnit || "")}
                                                 </span>
                                             )}
                                         </>
@@ -467,16 +467,16 @@ export default function BufferBuilder() {
                      const c1 = parseFloat(solute.stockConc);
                      const c2 = conc;
                      // simple simple approximation for typical units if match
-                     if (solute.unit === solute.stockUnit) {
+                     if (solute.unit === (solute.stockUnit || "")) {
                          return formatVolume((c2 * volL) / c1);
                      }
                      // If units mismatch, it's hard. But likely the user saw it on screen. 
                      // Let's try to handle M/mM at least
                      const isMolar = (u: string) => ['M', 'mM', 'μM'].includes(u);
-                     if (isMolar(solute.unit) && solute.stockUnit && isMolar(solute.stockUnit)) {
+                     if (isMolar(solute.unit) && solute.stockUnit && isMolar(solute.stockUnit || "")) {
                         let c1Base = c1; 
-                        if (solute.stockUnit === 'mM') c1Base /= 1000;
-                        if (solute.stockUnit === 'μM') c1Base /= 1e6;
+                        if ((solute.stockUnit || "") === 'mM') c1Base /= 1000;
+                        if ((solute.stockUnit || "") === 'μM') c1Base /= 1e6;
                         let c2Base = c2;
                         if (solute.unit === 'mM') c2Base /= 1000;
                         if (solute.unit === 'μM') c2Base /= 1e6;
@@ -504,7 +504,7 @@ export default function BufferBuilder() {
 
             let name = s.name;
             if (s.isStock) {
-                const stockUnitDisp = s.stockUnit === 'pct' ? '%' : s.stockUnit;
+                const stockUnitDisp = (s.stockUnit || "") === 'pct' ? '%' : (s.stockUnit || "");
                 name += `\n(STOCK: ${s.stockConc} ${stockUnitDisp})`;
             }
 

@@ -1,11 +1,12 @@
 "use client";
 
+import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { useToastStore } from "@/store/useToastStore";
 import type { ToastTone } from "@/store/useToastStore";
 
-const toneStyles: Record<ToastTone, { bg: string; text: string; icon: JSX.Element }> = {
+const toneStyles: Record<ToastTone, { bg: string; text: string; icon: React.JSX.Element }> = {
     success: {
         bg: "bg-emerald-500/15 border-emerald-500/30",
         text: "text-emerald-300",
