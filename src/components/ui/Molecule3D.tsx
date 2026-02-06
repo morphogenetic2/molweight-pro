@@ -47,12 +47,11 @@ export default function Molecule3D({ cid }: Molecule3DProps) {
                 if (viewerRef.current) {
                     viewerRef.current.clear();
                 } else {
-                    viewerRef.current = (window as any).$3Dmol.createViewer(containerRef.current, {
-                        backgroundColor: "transparent",
-                    });
+                    viewerRef.current = (window as any).$3Dmol.createViewer(containerRef.current);
                 }
 
                 const v = viewerRef.current;
+                v.setBackgroundColor(0x000000, 0); // Set transparent background
                 v.addModel(sdf, "sdf");
                 v.setStyle({}, { stick: { radius: 0.15, colorscheme: "Jmol" }, sphere: { scale: 0.25 } });
                 v.zoomTo();
