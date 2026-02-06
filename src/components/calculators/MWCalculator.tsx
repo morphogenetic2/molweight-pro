@@ -7,11 +7,13 @@ import { parseFormula, calculateMw, ChemicalData } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import Image from "next/image";
+import Molecule3D from "../ui/Molecule3D";
 
 export default function MWCalculator() {
     const { mwInput, setMwInput, mwResult, setMwResult, addToHistory } = useStore();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
 
     const handleCalculate = async (e?: React.FormEvent<HTMLFormElement>) => {
         e?.preventDefault();
@@ -127,19 +129,47 @@ export default function MWCalculator() {
                     </section>
 
                     {/* Visualization or Details */}
-                    <section className="glass-card overflow-hidden">
-                        <div className="flex h-full min-h-[200px] items-center justify-center p-4">
+                    <section className="glass-card overflow-hidden relative group min-h-[300px] flex flex-col">
+                        {mwResult.cid && (
+                            <div className="absolute top-4 right-4 z-10 flex gap-1 p-1 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                <button
+                                    onClick={() => setViewMode('2d')}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                        viewMode === '2d' 
+                                        ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' 
+                                        : 'text-zinc-400 hover:text-zinc-200'
+                                    }`}
+                                >
+                                    2D
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('3d')}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                        viewMode === '3d' 
+                                        ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' 
+                                        : 'text-zinc-400 hover:text-zinc-200'
+                                    }`}
+                                >
+                                    3D
+                                </button>
+                            </div>
+                        )}
+                        <div className="flex-1 flex items-center justify-center p-4">
                             {mwResult.cid ? (
-                                <Image
-                                    src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${mwResult.cid}/PNG`}
-                                    alt={mwResult.name || mwResult.formula}
-                                    width={256}
-                                    height={256}
-                                    className="max-h-48 sm:max-h-64 w-auto object-contain brightness-110 contrast-125"
-                                />
+                                viewMode === '2d' ? (
+                                    <Image
+                                        src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${mwResult.cid}/PNG`}
+                                        alt={mwResult.name || mwResult.formula}
+                                        width={256}
+                                        height={256}
+                                        className="max-h-48 sm:max-h-64 w-auto object-contain brightness-110 contrast-125 transition-all duration-500 animate-in fade-in zoom-in-95"
+                                    />
+                                ) : (
+                                    <Molecule3D cid={mwResult.cid} />
+                                )
                             ) : (
                                 <div className="text-center text-zinc-500 italic text-sm">
-                                    No 2D structure available for manual formula input.
+                                    No structure available for manual formula input.
                                 </div>
                             )}
                         </div>
