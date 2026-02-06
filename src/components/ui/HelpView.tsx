@@ -53,7 +53,7 @@ export function HelpView() {
             content: (
                 <div className="space-y-4 text-zinc-300">
                     <p>
-                        Plan simple dilutions using the <span className="text-indigo-300"><InlineMath math="C_1 V_1 = C_2 V_2" /></span> equation.
+                        Plan simple dilutions using the C<sub>1</sub>V<sub>1</sub> = C<sub>2</sub>V<sub>2</sub> equation.
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
