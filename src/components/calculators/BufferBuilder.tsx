@@ -422,12 +422,14 @@ export default function BufferBuilder() {
     const [confirmClear, setConfirmClear] = useState(false);
     const [isChecklist, setIsChecklist] = useState(false);
     const [isStockSelectOpen, setIsStockSelectOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [recipeExportName, setRecipeExportName] = useState("");
 
     const toggleCheck = useCallback((id: string) => {
         updateSolute(id, { done: !solutes.find((s) => s.id === id)?.done });
     }, [solutes, updateSolute]);
 
-    const handleExport = useCallback(() => {
+    const handleExport = useCallback((manualName?: string) => {
         // Create new PDF instance
         const doc = new jsPDF();
 
@@ -437,7 +439,7 @@ export default function BufferBuilder() {
         // Title
         doc.setFontSize(22);
         doc.setTextColor(40);
-        doc.text("Buffer Recipe", 14, 20);
+        doc.text(manualName || "Buffer Recipe", 14, 20);
 
         // Metadata (Date, etc)
         doc.setFontSize(10);
@@ -590,7 +592,7 @@ export default function BufferBuilder() {
                     </div>
                 </div>
 
-                <div className="flex grid grid-cols-3 sm:flex justify-end items-end gap-2">
+                <div className="flex grid grid-cols-2 sm:flex justify-end items-end gap-2">
                     <button
                         onClick={() => setIsChecklist(!isChecklist)}
                         className={`p-2.5 rounded-xl border transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold ${isChecklist
@@ -618,6 +620,18 @@ export default function BufferBuilder() {
                     >
                         <Save className="h-4 w-4" />
                         <span>Save</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            setRecipeExportName(""); // Reset name
+                            setIsExportModalOpen(true);
+                        }}
+                        disabled={solutes.length === 0}
+                        className="p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Export to PDF"
+                    >
+                        <Printer className="h-4 w-4" />
+                        <span>Export</span>
                     </button>
                 </div>
             </div>
@@ -728,14 +742,6 @@ export default function BufferBuilder() {
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-                <button
-                    onClick={handleExport}
-                    disabled={solutes.length === 0}
-                    className="flex text-zinc-500 hover:border-indigo-500/30 hover:bg-indigo-500/5 hover:text-indigo-400 border border-transparent items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                    <Printer className="h-4 w-4" />
-                    Export
-                </button>
                 {confirmClear ? (
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] sm:text-sm text-zinc-500 font-medium">Clear everything?</span>
@@ -758,12 +764,69 @@ export default function BufferBuilder() {
                 ) : (
                     <button
                         onClick={() => setConfirmClear(true)}
-                        className="secondary text-zinc-500 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/5 transition-all text-xs"
+                        className="p-2 px-3 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all text-xs font-bold flex items-center gap-2"
                     >
+                        <Trash2 className="h-3 w-3" />
                         Clear Recipe
                     </button>
                 )}
             </div>
+
+            {/* Export Name Modal */}
+            {isExportModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsExportModalOpen(false)} />
+                    <div className="relative glass-card !p-6 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">
+                                <Printer className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-white">Export Recipe</h3>
+                                <p className="text-zinc-400 text-sm">Enter a name for the PDF report (or leave it blank)</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Recipe Name</label>
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    value={recipeExportName}
+                                    onChange={(e) => setRecipeExportName(e.target.value)}
+                                    placeholder="Buffer Recipe"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            handleExport(recipeExportName);
+                                            setIsExportModalOpen(false);
+                                        }
+                                    }}
+                                    className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-xl px-4 py-3 outline-none transition-all text-white placeholder:text-white/10"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => setIsExportModalOpen(false)}
+                                    className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 transition-all text-sm font-bold"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleExport(recipeExportName);
+                                        setIsExportModalOpen(false);
+                                    }}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all text-sm font-bold shadow-lg shadow-indigo-500/20"
+                                >
+                                    Export PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
