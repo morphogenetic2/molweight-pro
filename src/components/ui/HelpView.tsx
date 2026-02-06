@@ -20,23 +20,23 @@ export function HelpView() {
             content: (
                 <div className="space-y-4 text-zinc-300">
                     <p>
-                        Calculate the molar mass of any chemical compound instantly.
+                        Calculate or look up the molar mass of any chemical instantly.
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
                             <strong className="text-white">Chemical Formulas:</strong> Type standard formulas like <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">H2SO4</code> or <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">CuSO4·5H2O</code>. You can use * and . to indicate hydration states.
                         </li>
                         <li>
-                            <strong className="text-white">Common Names:</strong> Type a name like &quot;Aspirin&quot; or &quot;Ethanol&quot;. The app uses PubChem to find the structure and weight.
+                            <strong className="text-white">Common Names:</strong> Type a name like &quot;aspirin&quot; or &quot;ethanol&quot;. The app uses PubChem to find the structure and weight.
                         </li>
                         <li>
                             <strong className="text-white">History:</strong> Successful calculations are saved (clock icon) for quick access later.
                         </li>
                     </ul>
                     <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example</h4>
+                        <h4 className="font-bold text-emerald-400 mb-2">📝 Example</h4>
                         <p className="text-sm">
-                            <strong>Goal:</strong> Find the molecular weight of Copper Sulfate Pentahydrate.
+                            <strong>Goal:</strong> Find the molecular weight of copper sulfate pentahydrate.
                         </p>
                         <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
                             <li>Type <code className="bg-white/10 px-1 rounded">CuSO4·5H2O</code> (or <code className="bg-white/10 px-1 rounded">CuSO4.5H2O</code>)</li>
@@ -57,25 +57,25 @@ export function HelpView() {
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
-                            <strong className="text-white">Stock (C1):</strong> Enter starting concentration.
+                            <strong className="text-white">Stock (C<sub>1</sub>):</strong> Enter starting concentration.
                         </li>
                         <li>
-                            <strong className="text-white">Target (C2, V2):</strong> Enter desired concentration and final volume.
+                            <strong className="text-white">Target (C<sub>2</sub>, V<sub>2</sub>):</strong> Enter desired concentration and final volume.
                         </li>
                         <li>
                             <strong className="text-white">Units:</strong> Automatic conversion (e.g., mM to µM).
                         </li>
                     </ul>
                     <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example</h4>
+                        <h4 className="font-bold text-emerald-400 mb-2">📝 Example</h4>
                         <p className="text-sm">
                             <strong>Goal:</strong> Prepare 50 mL of 100 mM NaCl from a 5 M stock.
                         </p>
                         <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
-                            <li>C1 = 5 M (stock concentration)</li>
-                            <li>C2 = 100 mM (target concentration)</li>
-                            <li>V2 = 50 mL (final volume)</li>
-                            <li><strong>Result:</strong> V1 = 1 mL of stock + 49 mL buffer</li>
+                            <li>C<sub>1</sub> = 5 M (stock concentration)</li>
+                            <li>C<sub>2</sub> = 100 mM (target concentration)</li>
+                            <li>V<sub>2</sub> = 50 mL (final volume)</li>
+                            <li><strong>Result:</strong> V<sub>1</sub> = 1 mL of stock + 49 mL buffer</li>
                         </ol>
                     </div>
                 </div>
@@ -93,11 +93,11 @@ export function HelpView() {
                         </div>
                     </div>
                     <ul className="list-disc pl-5 space-y-2">
-                        <li>Select which variable to calculate (Mass, Volume, or Concentration).</li>
+                        <li>Select which variable to calculate (mass, volume, or concentration).</li>
                         <li>Fill in the other three values.</li>
                     </ul>
                     <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example</h4>
+                        <h4 className="font-bold text-emerald-400 mb-2">📝 Example</h4>
                         <p className="text-sm">
                             <strong>Goal:</strong> How many grams of NaCl for 500 mL of 1 M solution?
                         </p>
@@ -121,17 +121,17 @@ export function HelpView() {
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
-                            <strong className="text-white">Buffer Calculator:</strong> Choose a buffer system (Tris, HEPES, PBS), set target pH and concentration. Get exact amounts of acid/base forms.
+                            <strong className="text-white">Buffer Calculator:</strong> Choose a buffer (Tris, HEPES, PBS), set the target pH and concentration and get the exact amounts of acid/base forms.
                         </li>
                         <li>
-                            <strong className="text-white">Recipe Builder:</strong> Add multiple solutes, define concentrations, set total volume. Calculates how much to weigh.
+                            <strong className="text-white">Recipe Builder:</strong> Add multiple solutes, define concentrations, set the total volume. Calculates how much to weigh of each solute.
                         </li>
                         <li>
                             <strong className="text-white">Export to PDF:</strong> Print your recipe as a checklist.
                         </li>
                     </ul>
                     <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                        <h4 className="font-bold text-emerald-400 mb-2">📝 Worked Example: 50 mM Tris pH 7.5</h4>
+                        <h4 className="font-bold text-emerald-400 mb-2">📝 Example: 50 mM Tris pH 7.5</h4>
                         <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
                             <li>Select &quot;Tris&quot; buffer, Method: &quot;Salt Mix&quot;</li>
                             <li>Target pH = 7.5, Concentration = 50 mM, Volume = 1 L</li>
