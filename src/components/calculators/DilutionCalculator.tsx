@@ -1,5 +1,5 @@
 import { useStore } from "@/store/useStore";
-import { formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel, tryCalculateMw } from "@/lib/parser";
+import { formatVolume, formatConcentration, getUnitLabel, tryCalculateMw } from "@/lib/parser";
 import { parseValueWithUnit } from "@/lib/chemistry/units";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "lucide-react";
@@ -242,7 +242,6 @@ export default function DilutionCalculator() {
                         {liveFormula && (
                             <div className="animate-in fade-in slide-in-from-top-1 duration-300">
                                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-white/10 shadow-xl backdrop-blur-sm ml-[44px] sm:ml-[48px]">
-                                    <span className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider">Quick Preview:</span>
                                     <FormulaBadge formula={liveFormula} className="text-[10px]" />
                                     <span className="text-[10px] font-mono text-indigo-400">{liveMW} g/mol</span>
                                 </div>
@@ -477,18 +476,6 @@ export default function DilutionCalculator() {
             </div>
 
             <AnimatePresence mode="wait">
-                {results && !("error" in results) && (
-                    <motion.div
-                        key="preview"
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="glass-card border-indigo-500/20 bg-indigo-500/[0.03] text-xs text-indigo-300 flex items-center gap-2"
-                    >
-                        <span className="font-bold uppercase tracking-wider text-[10px]">Live Preview</span>
-                        <span className="text-zinc-400">•</span>
-                        <span>V1 {formatVolume(results.v1)} · Solvent {formatVolume(results.solvent)}</span>
-                    </motion.div>
-                )}
                 {results && ('error' in results ? (
                     <motion.div
                         key="error"

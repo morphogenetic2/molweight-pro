@@ -4,14 +4,12 @@ import { useState, useEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { Search, Loader2, Scale, Beaker, Pipette, Atom, ArrowRightLeft, Lock } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
-import { parseFormula, calculateMw, tryCalculateMw, normalizeFormula } from "@/lib/parser";
-import { getUnitLabel } from "@/lib/chemistry/units";
+import { tryCalculateMw } from "@/lib/parser";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { Solver, denormalize } from "@/lib/chemistry/converter";
 import { MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "../ui/ValueUnitInput";
 import type { MolarityState } from "@/store/storeTypes";
-import Image from "next/image";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 
 // Group units for dropdowns
@@ -49,20 +47,6 @@ export default function MolarityCalculator() {
         return Number.isFinite(n) ? n : 0;
     };
     const mwMissingForMolar = Boolean(MOLAR_UNITS[molarityState.concUnit]) && (!molarityState.mw || molarityState.mw <= 0);
-    const preview = (() => {
-        switch (molarityState.target) {
-            case "mass":
-                return `${molarityState.mass || "--"} ${getUnitLabel(molarityState.massUnit)}`;
-            case "volume":
-                return `${molarityState.volume || "--"} ${getUnitLabel(molarityState.volUnit)}`;
-            case "concentration":
-                return `${molarityState.concentration || "--"} ${getUnitLabel(molarityState.concUnit)}`;
-            case "mw":
-                return `${molarityState.mw || "--"} g/mol`;
-            default:
-                return "--";
-        }
-    })();
 
     // --- Lookup Logic ---
     const handleLookup = async (e?: React.FormEvent<HTMLFormElement>) => {
@@ -181,17 +165,12 @@ export default function MolarityCalculator() {
                 </h2>
                 <p className="text-xs text-zinc-500">Tip: you can type values like <span className="font-mono text-zinc-400">10 mM</span> or <span className="font-mono text-zinc-400">500 mL</span>.</p>
             </div>
-            <div className="glass-card border-indigo-500/20 bg-indigo-500/[0.03] px-4 py-3 text-xs text-indigo-300 flex items-center gap-2">
-                <span className="font-bold uppercase tracking-wider text-[10px]">Live Preview</span>
-                <span className="text-zinc-400">•</span>
-                <span>{preview}</span>
-            </div>
 
             {/* Quick Lookup */}
             <div className="space-y-2">
                 <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2 text-zinc-500/80">Chemical Component</label>
-                <div className="flex flex-col gap-2">
-                    <div className="glass-card p-3 flex items-center gap-3">
+                <div className="glass-card p-3">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={() => searchTerm && window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank')}
                             aria-label="View search on PubChem"
@@ -212,9 +191,8 @@ export default function MolarityCalculator() {
                         </form>
                     </div>
                     {lookupResult?.formula && (
-                        <div className="animate-in fade-in slide-in-from-top-1 duration-300 ml-[44px]">
+                        <div className="mt-2 ml-[44px] animate-in fade-in slide-in-from-top-1 duration-300">
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-white/10 shadow-xl backdrop-blur-sm">
-                                <span className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider">Quick Preview:</span>
                                 <FormulaBadge formula={lookupResult.formula} className="text-[10px]" />
                                 <span className="text-[10px] font-mono text-indigo-400">{molarityState.mw} g/mol</span>
                             </div>
