@@ -6,6 +6,8 @@ import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "luci
 import { lookupPubChem } from "@/lib/api";
 import { useState, useEffect } from "react";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
+import { useToastStore } from "@/store/useToastStore";
 
 
 export default function DilutionCalculator() {
@@ -19,6 +21,10 @@ export default function DilutionCalculator() {
     const [isSearching, setIsSearching] = useState(false);
     const [showVolumeWarning, setShowVolumeWarning] = useState(false);
     const [mwInput, setMwInput] = useState(dilution.mw ? String(dilution.mw) : "");
+    const { push } = useToastStore();
+    const c1Num = parseFloat(dilution.c1);
+    const c2Num = parseFloat(dilution.c2);
+    const v2Num = parseFloat(dilution.v2);
 
     // Track the ID of the solute we just added (PERSISTED in store now)
     const linkedSoluteId = dilution.linkedSoluteId;
@@ -57,6 +63,7 @@ export default function DilutionCalculator() {
             });
             // Persist the link
             setDilution({ linkedSoluteId: newId });
+            push("Added to recipe builder.", "success");
         } else if (buttonState === "update" && linkedSoluteId) {
             updateSolute(linkedSoluteId, {
                 name: dilution.name,
@@ -66,6 +73,7 @@ export default function DilutionCalculator() {
                 stockConc: dilution.c1,
                 stockUnit: dilution.u1
             });
+            push("Recipe updated.", "success");
         }
     };
 
@@ -115,6 +123,12 @@ export default function DilutionCalculator() {
     const isMolar = (u: string) => ['M', 'mM', 'μM'].includes(u);
     // Helper: isMass checks if unit is μg/mL, mg/mL, mg/L, g/L, pct, ng/μL
     const isMass = (u: string) => ['μg/mL', 'mg/mL', 'mg/L', 'g/L', 'pct', 'ng/μL'].includes(u);
+
+    const needsMw = (() => {
+        const domain1 = isMolar(dilution.u1) ? 'molar' : (isMass(dilution.u1) ? 'mass' : null);
+        const domain2 = isMolar(dilution.u2) ? 'molar' : (isMass(dilution.u2) ? 'mass' : null);
+        return domain1 !== domain2 && domain1 && domain2;
+    })();
 
     // Advanced calculation logic (matching prototype C1V1 = C2V2)
     const calculateDilution = () => {
@@ -245,6 +259,9 @@ export default function DilutionCalculator() {
                         />
                         <span className="text-zinc-500 text-[10px] sm:text-xs font-mono shrink-0">g/mol</span>
                     </div>
+                    {needsMw && (!dilution.mw || dilution.mw <= 0) && (
+                        <p className="text-[11px] text-amber-500 mt-1">MW required for mass ↔ molar conversion.</p>
+                    )}
                 </div>
             </section>
 
@@ -256,6 +273,7 @@ export default function DilutionCalculator() {
                         <div className="relative">
                             <button
                                 onClick={() => setIsStockSelectOpen(!isStockSelectOpen)}
+                                aria-label="Select stock from database"
                                 className="text-[10px] flex items-center gap-1.5 px-2 py-1 rounded bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-all border border-indigo-500/20"
                             >
                                 <Beaker className="h-3 w-3" />
@@ -267,7 +285,7 @@ export default function DilutionCalculator() {
                                     <div className="absolute right-0 top-full mt-2 w-64 bg-[#0f0f11] border border-white/10 rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
                                         {stocks.length === 0 ? (
                                             <div className="p-4 text-center text-zinc-500 text-xs italic">
-                                                No stocks saved.
+                                                No stocks saved yet. Add one in the Stock Buffers tab.
                                             </div>
                                         ) : (
                                             stocks.map(stock => (
@@ -298,45 +316,22 @@ export default function DilutionCalculator() {
                     </div>
                     <div className="space-y-4">
                         <div className="flex gap-2">
-                            <input
-                                type="text"
-                                inputMode="decimal"
-                                placeholder="Conc"
-                                className="flex-1 text-sm"
+                            <ValueUnitInput
                                 value={dilution.c1}
-                                onChange={(e) => {
-                                    const raw = e.target.value;
-                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]);
-                                    setDilution({ c1: raw });
-                                    if (parsed.unit) setDilution({ u1: parsed.unit });
-                                }}
-                                onBlur={(e) => {
-                                    const raw = e.target.value;
-                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]);
-                                    if (parsed.unit) setDilution({ u1: parsed.unit });
-                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
-                                        setDilution({ c1: parsed.value });
-                                    } else {
-                                        setDilution({ c1: raw.trim() });
-                                    }
-                                }}
+                                unit={dilution.u1}
+                                options={["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]}
+                                onValueChange={(raw) => setDilution({ c1: raw })}
+                                onUnitChange={(unit) => setDilution({ u1: unit })}
+                                className="flex-1"
+                                inputClassName="text-sm"
+                                selectClassName="w-24 sm:w-32 text-xs sm:text-sm"
                             />
-                            <select
-                                className="w-24 sm:w-32 text-xs sm:text-sm"
-                                value={dilution.u1}
-                                onChange={(e) => setDilution({ u1: e.target.value })}
-                            >
-                                <option value="M">M</option>
-                                <option value="mM">mM</option>
-                                <option value="μM">μM</option>
-                                <option value="μg/mL">μg/mL</option>
-                                <option value="ng/μL">ng/μL</option>
-                                <option value="mg/mL">mg/mL</option>
-                                <option value="mg/L">mg/L</option>
-                                <option value="g/L">g/L</option>
-                                <option value="pct">% (w/v)</option>
-                            </select>
                         </div>
+                        {(!Number.isFinite(c1Num) || c1Num <= 0) ? (
+                            <p className="text-[11px] text-amber-500">Enter a positive stock concentration.</p>
+                        ) : (
+                            <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">10 mM</span> or <span className="font-mono text-zinc-400">5 mg/mL</span>.</p>
+                        )}
                     </div>
                 </section>
 
@@ -345,79 +340,44 @@ export default function DilutionCalculator() {
                     <h3 className="text-base sm:text-lg font-semibold mb-4 text-emerald-400">Target Solution (C2, V2)</h3>
                     <div className="space-y-4">
                         <div className="flex gap-2">
-                            <input
-                                type="text"
-                                inputMode="decimal"
-                                placeholder="Target Conc (C2)"
-                                className="flex-1 text-sm"
+                            <ValueUnitInput
                                 value={dilution.c2}
-                                onChange={(e) => {
-                                    const raw = e.target.value;
-                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]);
-                                    setDilution({ c2: raw });
-                                    if (parsed.unit) setDilution({ u2: parsed.unit });
-                                }}
-                                onBlur={(e) => {
-                                    const raw = e.target.value;
-                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]);
-                                    if (parsed.unit) setDilution({ u2: parsed.unit });
-                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
-                                        setDilution({ c2: parsed.value });
-                                    } else {
-                                        setDilution({ c2: raw.trim() });
+                                unit={dilution.u2}
+                                options={["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]}
+                                onValueChange={(raw) => setDilution({ c2: raw })}
+                                onUnitChange={(unit) => setDilution({ u2: unit })}
+                                isOptionDisabled={(opt) => {
+                                    if (isMolar(opt)) {
+                                        return (!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1);
                                     }
+                                    if (isMass(opt) || opt === "pct") {
+                                        return (!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1);
+                                    }
+                                    return false;
                                 }}
+                                className="flex-1"
+                                inputClassName="text-sm"
+                                selectClassName="w-24 sm:w-32 text-xs sm:text-sm"
                             />
-                            <select
-                                className="w-24 sm:w-32 text-xs sm:text-sm"
-                                value={dilution.u2}
-                                onChange={(e) => setDilution({ u2: e.target.value })}
-                            >
-                                <option value="M" disabled={(!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1)}>M</option>
-                                <option value="mM" disabled={(!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1)}>mM</option>
-                                <option value="μM" disabled={(!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1)}>μM</option>
-                                <option value="μg/mL" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>μg/mL</option>
-                                <option value="ng/μL" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>ng/μL</option>
-                                <option value="mg/mL" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>mg/mL</option>
-                                <option value="mg/L" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>mg/L</option>
-                                <option value="g/L" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>g/L</option>
-                                <option value="pct" disabled={(!dilution.mw || dilution.mw <= 0) && !isMass(dilution.u1)}>% (w/v)</option>
-                            </select>
                         </div>
+                        {(!Number.isFinite(c2Num) || c2Num <= 0) && (
+                            <p className="text-[11px] text-amber-500">Enter a positive target concentration.</p>
+                        )}
                         <div className="flex gap-2">
-                            <input
-                                type="text"
-                                inputMode="decimal"
-                                placeholder="Final Vol (V2)"
-                                className="flex-1 text-sm"
+                            <ValueUnitInput
                                 value={dilution.v2}
-                                onChange={(e) => {
-                                    const raw = e.target.value;
-                                    const parsed = parseValueWithUnit(raw, ["mL", "μL", "L"]);
-                                    setDilution({ v2: raw });
-                                    if (parsed.unit) setDilution({ vu2: parsed.unit });
-                                }}
-                                onBlur={(e) => {
-                                    const raw = e.target.value;
-                                    const parsed = parseValueWithUnit(raw, ["mL", "μL", "L"]);
-                                    if (parsed.unit) setDilution({ vu2: parsed.unit });
-                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
-                                        setDilution({ v2: parsed.value });
-                                    } else {
-                                        setDilution({ v2: raw.trim() });
-                                    }
-                                }}
+                                unit={dilution.vu2}
+                                options={["mL", "μL", "L"]}
+                                onValueChange={(raw) => setDilution({ v2: raw })}
+                                onUnitChange={(unit) => setDilution({ vu2: unit })}
+                                className="flex-1"
+                                inputClassName="text-sm"
+                                selectClassName="w-20 sm:w-24 text-xs sm:text-sm"
                             />
-                            <select
-                                className="w-20 sm:w-24 text-xs sm:text-sm"
-                                value={dilution.vu2}
-                                onChange={(e) => setDilution({ vu2: e.target.value })}
-                            >
-                                <option>mL</option>
-                                <option>μL</option>
-                                <option>L</option>
-                            </select>
                         </div>
+                        {(!Number.isFinite(v2Num) || v2Num <= 0) && (
+                            <p className="text-[11px] text-amber-500">Enter a positive final volume.</p>
+                        )}
                     </div>
 
                     {/* Integration Buttons */}
@@ -495,6 +455,18 @@ export default function DilutionCalculator() {
             </div>
 
             <AnimatePresence mode="wait">
+                {results && !("error" in results) && (
+                    <motion.div
+                        key="preview"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="glass-card border-indigo-500/20 bg-indigo-500/[0.03] text-xs text-indigo-300 flex items-center gap-2"
+                    >
+                        <span className="font-bold uppercase tracking-wider text-[10px]">Live Preview</span>
+                        <span className="text-zinc-400">•</span>
+                        <span>V1 {formatVolume(results.v1)} · Solvent {formatVolume(results.solvent)}</span>
+                    </motion.div>
+                )}
                 {results && ('error' in results ? (
                     <motion.div
                         key="error"

@@ -8,11 +8,14 @@ interface ValueUnitInputProps {
     onValueChange: (val: string) => void;
     onUnitChange: (unit: string) => void;
     options: string[]; // List of unit keys
+    isOptionDisabled?: (unit: string) => boolean;
     label?: string;
     disabled?: boolean;
     placeholder?: string;
     className?: string;
     inputClassName?: string;
+    selectClassName?: string;
+    wrapperClassName?: string;
     readOnlyInput?: boolean;
 }
 
@@ -22,17 +25,20 @@ export function ValueUnitInput({
     onValueChange,
     onUnitChange,
     options,
+    isOptionDisabled,
     label,
     disabled = false,
     readOnlyInput = false,
     placeholder = "0.00",
     className = "",
-    inputClassName = ""
+    inputClassName = "",
+    selectClassName = "",
+    wrapperClassName = ""
 }: ValueUnitInputProps) {
     return (
         <div className={`space-y-1 ${className}`}>
             {label && <label className="text-xs font-bold text-zinc-500 uppercase">{label}</label>}
-            <div className={`flex items-center gap-2 ${disabled ? 'opacity-50' : ''}`}>
+            <div className={`flex items-center gap-2 ${disabled ? 'opacity-50' : ''} ${wrapperClassName}`}>
                 <input
                     type="text"
                     inputMode="decimal"
@@ -66,10 +72,10 @@ export function ValueUnitInput({
                     value={unit}
                     onChange={(e) => onUnitChange(e.target.value)}
                     disabled={disabled}
-                    className="bg-transparent border-none text-sm text-zinc-500 focus:ring-0 cursor-pointer hover:text-zinc-300 min-w-[3rem] text-right"
+                    className={`bg-transparent border-none text-sm text-zinc-500 focus:ring-0 cursor-pointer hover:text-zinc-300 min-w-[3rem] text-right ${selectClassName}`}
                 >
                     {options.map((opt) => (
-                        <option key={opt} value={opt} className="bg-zinc-900">
+                        <option key={opt} value={opt} disabled={isOptionDisabled?.(opt)} className="bg-zinc-900">
                             {getUnitLabel(opt)}
                         </option>
                     ))}

@@ -8,10 +8,13 @@ import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { motion, AnimatePresence } from "framer-motion";
 import { parseValueWithUnit } from "@/lib/chemistry/units";
+import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
+import { useToastStore } from "@/store/useToastStore";
 
 export function StockManager() {
     const { stocks, addStock, removeStock } = useStore();
     const [isCreating, setIsCreating] = useState(false);
+    const { push } = useToastStore();
 
     // New Stock Form State
     const [newName, setNewName] = useState("");
@@ -45,6 +48,7 @@ export function StockManager() {
         };
 
         addStock(newStock);
+        push("Stock saved.", "success");
 
         // Reset form
         setNewName("");
@@ -175,82 +179,33 @@ export function StockManager() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-xs font-bold text-zinc-500 uppercase">Concentration</label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                value={newConc}
-                                                onChange={(e) => {
-                                                    const raw = e.target.value;
-                                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "mg/mL", "g/L", "pct"]);
-                                                    setNewConc(raw);
-                                                    if (parsed.unit) setNewUnit(parsed.unit);
-                                                }}
-                                                onBlur={(e) => {
-                                                    const raw = e.target.value;
-                                                    const parsed = parseValueWithUnit(raw, ["M", "mM", "μM", "mg/mL", "g/L", "pct"]);
-                                                    if (parsed.unit) setNewUnit(parsed.unit);
-                                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
-                                                        setNewConc(parsed.value);
-                                                    } else {
-                                                        setNewConc(raw.trim());
-                                                    }
-                                                }}
-                                                placeholder="1.0"
-                                                className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white"
-                                            />
-                                            <select
-                                                value={newUnit}
-                                                onChange={(e) => setNewUnit(e.target.value)}
-                                                className="bg-black/20 border border-white/10 rounded-xl px-3 text-zinc-400"
-                                            >
-                                                <option value="M">M</option>
-                                                <option value="mM">mM</option>
-                                                <option value="μM">μM</option>
-                                                <option value="mg/mL">mg/mL</option>
-                                                <option value="g/L">g/L</option>
-                                                <option value="pct">%</option>
-                                            </select>
-                                        </div>
+                                        <ValueUnitInput
+                                            label="Concentration"
+                                            value={newConc}
+                                            unit={newUnit}
+                                            options={["M", "mM", "μM", "mg/mL", "g/L", "pct"]}
+                                            onValueChange={(raw) => setNewConc(raw)}
+                                            onUnitChange={(unit) => setNewUnit(unit)}
+                                            inputClassName="text-sm"
+                                            selectClassName="min-w-[3rem]"
+                                            wrapperClassName="bg-black/20 rounded-xl border border-white/10 px-4 py-2.5"
+                                        />
+                                        <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">10 mM</span></p>
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-xs font-bold text-zinc-500 uppercase">Available Volume (Optional)</label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                value={newVol}
-                                                onChange={(e) => {
-                                                    const raw = e.target.value;
-                                                    const parsed = parseValueWithUnit(raw, ["mL", "L", "μL"]);
-                                                    setNewVol(raw);
-                                                    if (parsed.unit) setNewVolUnit(parsed.unit);
-                                                }}
-                                                onBlur={(e) => {
-                                                    const raw = e.target.value;
-                                                    const parsed = parseValueWithUnit(raw, ["mL", "L", "μL"]);
-                                                    if (parsed.unit) setNewVolUnit(parsed.unit);
-                                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
-                                                        setNewVol(parsed.value);
-                                                    } else {
-                                                        setNewVol(raw.trim());
-                                                    }
-                                                }}
-                                                placeholder="500"
-                                                className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white"
-                                            />
-                                            <select
-                                                value={newVolUnit}
-                                                onChange={(e) => setNewVolUnit(e.target.value)}
-                                                className="bg-black/20 border border-white/10 rounded-xl px-3 text-zinc-400"
-                                            >
-                                                <option value="mL">mL</option>
-                                                <option value="L">L</option>
-                                                <option value="μL">μL</option>
-                                            </select>
-                                        </div>
+                                        <ValueUnitInput
+                                            label="Available Volume (Optional)"
+                                            value={newVol}
+                                            unit={newVolUnit}
+                                            options={["mL", "L", "μL"]}
+                                            onValueChange={(raw) => setNewVol(raw)}
+                                            onUnitChange={(unit) => setNewVolUnit(unit)}
+                                            inputClassName="text-sm"
+                                            selectClassName="min-w-[3rem]"
+                                            wrapperClassName="bg-black/20 rounded-xl border border-white/10 px-4 py-2.5"
+                                        />
+                                        <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">500 mL</span></p>
                                     </div>
                                 </div>
                             </div>
@@ -281,6 +236,7 @@ export function StockManager() {
                 {(stocks || []).length === 0 ? (
                     <div className="col-span-full py-12 text-center text-zinc-500 italic bg-white/5 rounded-3xl border border-white/5">
                         No stock solutions saved yet.
+                        <div className="text-[11px] text-zinc-600 mt-2">Add your first stock to reuse in recipes.</div>
                     </div>
                 ) : (
                     (stocks || []).map((stock) => (

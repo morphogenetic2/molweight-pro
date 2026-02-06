@@ -11,6 +11,7 @@ import { lookupPubChem } from "@/lib/api";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useToastStore } from "@/store/useToastStore";
 
 
 function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { solute: Solute; isChecklist: boolean; onToggleCheck: (id: string) => void; view?: 'table' | 'card' }) {
@@ -160,6 +161,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                                 <button
                                     onClick={handleExternalLookup}
                                     title="View on PubChem"
+                                    aria-label="View on PubChem"
                                     className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all text-xs"
                                 >
                                     <Search className="h-3.5 w-3.5" />
@@ -279,6 +281,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                 <td className="px-6 py-4 align-top">
                     <button
                         onClick={() => removeSolute(solute.id)}
+                        aria-label={`Remove ${solute.name || "solute"}`}
                         className="text-zinc-600 hover:text-red-400 p-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all"
                     >
                         <Trash2 className="h-4 w-4" />
@@ -325,6 +328,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                 </div>
                 <button
                     onClick={() => removeSolute(solute.id)}
+                    aria-label={`Remove ${solute.name || "solute"}`}
                     className="text-zinc-600 hover:text-red-400 p-2"
                 >
                     <Trash2 className="h-4 w-4" />
@@ -413,6 +417,7 @@ export default function BufferBuilder() {
         setIsRecipeLibraryOpen, setIsSaveRecipeOpen,
         stocks
     } = useStore();
+    const { push } = useToastStore();
 
     const [confirmClear, setConfirmClear] = useState(false);
     const [isChecklist, setIsChecklist] = useState(false);
@@ -542,7 +547,8 @@ export default function BufferBuilder() {
         });
 
         doc.save("Buffer_Recipe.pdf");
-    }, [bufferVolume, bufferUnit, solutes]);
+        push("PDF exported.", "success");
+    }, [bufferVolume, bufferUnit, solutes, push]);
 
     return (
         <div className="space-y-4 sm:space-y-6 pb-10">
@@ -688,7 +694,7 @@ export default function BufferBuilder() {
                                 <div className="absolute bottom-full left-0 right-0 mb-2 mx-2 bg-[#0f0f11] border border-white/10 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">
                                     {stocks.length === 0 ? (
                                         <div className="p-4 text-center text-zinc-500 text-xs italic">
-                                            No stocks saved.
+                                            No stocks saved yet. Add one in the Stock Buffers tab.
                                         </div>
                                     ) : (
                                         stocks.map(stock => (

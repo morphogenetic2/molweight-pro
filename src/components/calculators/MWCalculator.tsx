@@ -71,6 +71,7 @@ export default function MWCalculator() {
                             <button
                                 type="button"
                                 title="View on PubChem"
+                                aria-label="View on PubChem"
                                 onClick={() => {
                                     if (mwInput.trim()) {
                                         window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(mwInput.trim())}`, "_blank");
@@ -98,6 +99,7 @@ export default function MWCalculator() {
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Calculate"}
                         </button>
                     </div>
+                    <p className="text-[11px] text-zinc-500">Tip: formulas like <span className="font-mono text-zinc-400">CuSO4·5H2O</span> work too.</p>
                     {error && (
                         <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 p-3 rounded-lg">
                             <AlertCircle className="h-4 w-4" />

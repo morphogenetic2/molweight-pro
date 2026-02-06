@@ -42,6 +42,7 @@ export function RecipeLibrary() {
                         </div>
                         <button
                             onClick={() => setIsRecipeLibraryOpen(false)}
+                            aria-label="Close recipe library"
                             className="p-2 rounded-xl hover:bg-white/5 transition-colors text-zinc-500 hover:text-white"
                         >
                             <X className="h-5 w-5" />
@@ -72,6 +73,7 @@ export function RecipeLibrary() {
                                                     e.stopPropagation();
                                                     deleteRecipe(recipe.id);
                                                 }}
+                                                aria-label={`Delete recipe ${recipe.name}`}
                                                 className="p-1.5 rounded-lg hover:bg-red-500/10 text-zinc-600 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
                                             >
                                                 <Trash2 className="h-3.5 w-3.5" />

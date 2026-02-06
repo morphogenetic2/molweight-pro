@@ -82,7 +82,7 @@ export function HelpView() {
             )
         },
         {
-            title: "Molarity Triangle",
+            title: "Molarity Calculator",
             icon: Scale,
             content: (
                 <div className="space-y-4 text-zinc-300">

@@ -7,6 +7,8 @@ import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings
 import { formatMass, formatVolume } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
 import { parseValueWithUnit } from "@/lib/chemistry/units";
+import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
+import { useToastStore } from "@/store/useToastStore";
 
 // --- Types ---
 
@@ -90,6 +92,7 @@ export default function BufferCalculator() {
         updateAdjustmentStock,
         removeAdjustmentStock
     } = useStore();
+    const { push } = useToastStore();
     
     // Destructure config for easier usage
     const { 
@@ -113,6 +116,8 @@ export default function BufferCalculator() {
     const [totalConcInput, setTotalConcInput] = useState(totalConc.toString());
     const [totalVolInput, setTotalVolInput] = useState(totalVol.toString());
     const [adjustmentInputs, setAdjustmentInputs] = useState<Record<string, string>>({});
+    const concInvalid = !Number.isFinite(totalConc) || totalConc <= 0;
+    const volInvalid = !Number.isFinite(totalVol) || totalVol <= 0;
 
     // --- Computed ---
     const buffer = useMemo(() => BUFFER_SYSTEMS.find(b => b.id === selectedBufferId)!, [selectedBufferId]);
@@ -238,6 +243,7 @@ export default function BufferCalculator() {
 
         setShowOverwriteWarning(false);
         setActiveTab("buffer_recipe");
+        push("Exported to Recipe Builder.", "success");
     };
 
     const handleExportToBuilder = () => {
@@ -394,84 +400,52 @@ export default function BufferCalculator() {
 
                         {/* Concentration */}
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Final Concentration</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={totalConcInput}
-                                    onChange={(e) => {
-                                        const raw = e.target.value;
-                                        setTotalConcInput(raw);
-                                        const parsed = parseValueWithUnit(raw, ["mM", "M"]);
-                                        const num = parseFloat(parsed.value);
-                                        if (Number.isFinite(num)) setTotalConc(num);
-                                        if (parsed.unit) setConcUnit(parsed.unit as "M" | "mM");
-                                    }}
-                                    onBlur={(e) => {
-                                        const raw = e.target.value;
-                                        const parsed = parseValueWithUnit(raw, ["mM", "M"]);
-                                        const num = parseFloat(parsed.value);
-                                        if (Number.isFinite(num)) {
-                                            setTotalConc(num);
-                                            setTotalConcInput(parsed.value);
-                                        } else {
-                                            setTotalConcInput(raw.trim());
-                                        }
-                                        if (parsed.unit) setConcUnit(parsed.unit as "M" | "mM");
-                                    }}
-                                    className="w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                                />
-                                <select
-                                    value={concUnit}
-                                    onChange={(e) => setConcUnit(e.target.value as "M" | "mM")}
-                                    className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                                >
-                                    <option value="mM" className="bg-zinc-900">mM</option>
-                                    <option value="M" className="bg-zinc-900">M</option>
-                                </select>
-                            </div>
+                            <ValueUnitInput
+                                label="Final Concentration"
+                                value={totalConcInput}
+                                unit={concUnit}
+                                options={["mM", "M"]}
+                                onValueChange={(raw) => {
+                                    setTotalConcInput(raw);
+                                    const parsed = parseValueWithUnit(raw, ["mM", "M"]);
+                                    const num = parseFloat(parsed.value);
+                                    if (Number.isFinite(num)) setTotalConc(num);
+                                }}
+                                onUnitChange={(unit) => setConcUnit(unit as "M" | "mM")}
+                                inputClassName="text-sm"
+                                selectClassName="min-w-[3rem]"
+                                wrapperClassName="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5"
+                            />
+                            {concInvalid ? (
+                                <p className="text-[11px] text-amber-500">Enter a positive concentration.</p>
+                            ) : (
+                                <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">10 mM</span></p>
+                            )}
                         </div>
 
                         {/* Volume */}
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Total Volume</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={totalVolInput}
-                                    onChange={(e) => {
-                                        const raw = e.target.value;
-                                        setTotalVolInput(raw);
-                                        const parsed = parseValueWithUnit(raw, ["L", "mL"]);
-                                        const num = parseFloat(parsed.value);
-                                        if (Number.isFinite(num)) setTotalVol(num);
-                                        if (parsed.unit) setVolUnit(parsed.unit as "L" | "mL");
-                                    }}
-                                    onBlur={(e) => {
-                                        const raw = e.target.value;
-                                        const parsed = parseValueWithUnit(raw, ["L", "mL"]);
-                                        const num = parseFloat(parsed.value);
-                                        if (Number.isFinite(num)) {
-                                            setTotalVol(num);
-                                            setTotalVolInput(parsed.value);
-                                        } else {
-                                            setTotalVolInput(raw.trim());
-                                        }
-                                        if (parsed.unit) setVolUnit(parsed.unit as "L" | "mL");
-                                    }}
-                                    className="w-32 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                                />
-                                <select
-                                    value={volUnit}
-                                    onChange={(e) => setVolUnit(e.target.value as "L" | "mL")}
-                                    className="w-24 bg-white/5 border border-white/10 rounded-xl px-3 text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                                >
-                                    <option value="L" className="bg-zinc-900">L</option>
-                                    <option value="mL" className="bg-zinc-900">mL</option>
-                                </select>
-                            </div>
+                            <ValueUnitInput
+                                label="Total Volume"
+                                value={totalVolInput}
+                                unit={volUnit}
+                                options={["L", "mL"]}
+                                onValueChange={(raw) => {
+                                    setTotalVolInput(raw);
+                                    const parsed = parseValueWithUnit(raw, ["L", "mL"]);
+                                    const num = parseFloat(parsed.value);
+                                    if (Number.isFinite(num)) setTotalVol(num);
+                                }}
+                                onUnitChange={(unit) => setVolUnit(unit as "L" | "mL")}
+                                inputClassName="text-sm"
+                                selectClassName="min-w-[3rem]"
+                                wrapperClassName="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5"
+                            />
+                            {volInvalid ? (
+                                <p className="text-[11px] text-amber-500">Enter a positive volume.</p>
+                            ) : (
+                                <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">500 mL</span></p>
+                            )}
                         </div>
 
                         {/* Stock Selection (Titration Only) */}
@@ -497,6 +471,9 @@ export default function BufferCalculator() {
                                         <option key={s.id} value={s.id}>{s.name} ({s.concM}M {s.type === 'acid' ? 'Acid' : 'Base'})</option>
                                     ))}
                                 </select>
+                                {adjustmentStocks.length === 0 && (
+                                    <p className="text-[11px] text-amber-500">Add an adjustment stock to use titration mode.</p>
+                                )}
                             </div>
                         )}
                     </div>
@@ -511,7 +488,10 @@ export default function BufferCalculator() {
                             <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
                                 <Scale className="h-5 w-5" />
                             </div>
-                            <h2 className="text-lg font-bold text-zinc-100">Recipe</h2>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-lg font-bold text-zinc-100">Recipe</h2>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">Live</span>
+                            </div>
                         </div>
 
                         <div className="flex-1 space-y-6">
@@ -588,7 +568,7 @@ export default function BufferCalculator() {
                                                     volUnit: volUnit,
                                                     dateAdded: new Date().toISOString()
                                                 });
-                                                // Optional: Show toast
+                                                push("Saved result as stock.", "success");
                                             }}
                                             className="w-full py-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl text-emerald-400 font-bold flex items-center justify-center gap-2"
                                         >
@@ -742,6 +722,7 @@ export default function BufferCalculator() {
                                                 </div>
                                                 <button
                                                     onClick={() => removeAdjustmentStock(stock.id)}
+                                                    aria-label={`Delete ${stock.name}`}
                                                     className="p-2 text-zinc-600 hover:text-red-400"
                                                 >
                                                     <Trash2 className="h-4 w-4" />

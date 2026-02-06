@@ -5,6 +5,7 @@ import { useStore } from "@/store/useStore";
 import { Search, Loader2, Scale, Beaker, Pipette, Atom, ArrowRightLeft, Lock } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
 import { parseFormula, calculateMw } from "@/lib/parser";
+import { getUnitLabel } from "@/lib/chemistry/units";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { Solver, denormalize } from "@/lib/chemistry/converter";
 import { MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS } from "@/lib/chemistry/units";
@@ -27,6 +28,25 @@ export default function MolarityCalculator() {
     const [searchTerm, setSearchTerm] = useState("");
     const [searching, setSearching] = useState(false);
     const [lookupResult, setLookupResult] = useState<{ name?: string, formula?: string, cid?: number } | null>(null);
+    const num = (v: string | number) => {
+        const n = parseFloat(String(v));
+        return Number.isFinite(n) ? n : 0;
+    };
+    const mwMissingForMolar = Boolean(MOLAR_UNITS[molarityState.concUnit]) && (!molarityState.mw || molarityState.mw <= 0);
+    const preview = (() => {
+        switch (molarityState.target) {
+            case "mass":
+                return `${molarityState.mass || "--"} ${getUnitLabel(molarityState.massUnit)}`;
+            case "volume":
+                return `${molarityState.volume || "--"} ${getUnitLabel(molarityState.volUnit)}`;
+            case "concentration":
+                return `${molarityState.concentration || "--"} ${getUnitLabel(molarityState.concUnit)}`;
+            case "mw":
+                return `${molarityState.mw || "--"} g/mol`;
+            default:
+                return "--";
+        }
+    })();
 
     // --- Lookup Logic ---
     const handleLookup = async (e?: React.FormEvent<HTMLFormElement>) => {
@@ -142,14 +162,22 @@ export default function MolarityCalculator() {
             {/* Header */}
             <div className="text-center space-y-2">
                 <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
-                    Molarity Calculator 2.0
+                    Molarity Calculator
                 </h2>
+                <p className="text-xs text-zinc-500">Tip: you can type values like <span className="font-mono text-zinc-400">10 mM</span> or <span className="font-mono text-zinc-400">500 mL</span>.</p>
+            </div>
+            <div className="glass-card border-indigo-500/20 bg-indigo-500/[0.03] px-4 py-3 text-xs text-indigo-300 flex items-center gap-2">
+                <span className="font-bold uppercase tracking-wider text-[10px]">Live Preview</span>
+                <span className="text-zinc-400">•</span>
+                <span>{preview}</span>
             </div>
 
             {/* Quick Lookup */}
             <div className="space-y-4">
                 <div className="glass-card p-4 flex items-center gap-3">
-                    <button onClick={() => searchTerm && window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank')}
+                    <button
+                        onClick={() => searchTerm && window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank')}
+                        aria-label="View search on PubChem"
                         className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors"
                     >
                         <Search className="h-5 w-5" />
@@ -205,6 +233,9 @@ export default function MolarityCalculator() {
                                 />
                                 <span className="text-sm text-zinc-500">g/mol</span>
                             </div>
+                            {mwMissingForMolar && (
+                                <p className="text-[11px] text-amber-500 mt-1">MW required for molar concentrations.</p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -229,6 +260,9 @@ export default function MolarityCalculator() {
                             <Lock className={`h-4 w-4 ${isTarget('mass') ? 'fill-current' : ''}`} />
                         </button>
                     </div>
+                    {isTarget('mass') && (num(molarityState.volume) <= 0 || num(molarityState.concentration) <= 0) && (
+                        <p className="text-[11px] text-amber-500 mt-2">Enter volume and concentration to calculate mass.</p>
+                    )}
                 </div>
 
                 <div className="flex justify-center -my-2 opacity-30">
@@ -255,6 +289,9 @@ export default function MolarityCalculator() {
                             <Lock className={`h-4 w-4 ${isTarget('concentration') ? 'fill-current' : ''}`} />
                         </button>
                     </div>
+                    {isTarget('concentration') && (num(molarityState.mass) <= 0 || num(molarityState.volume) <= 0) && (
+                        <p className="text-[11px] text-amber-500 mt-2">Enter mass and volume to calculate concentration.</p>
+                    )}
                 </div>
 
                 {/* Volume Row */}
@@ -277,6 +314,9 @@ export default function MolarityCalculator() {
                             <Lock className={`h-4 w-4 ${isTarget('volume') ? 'fill-current' : ''}`} />
                         </button>
                     </div>
+                    {isTarget('volume') && (num(molarityState.mass) <= 0 || num(molarityState.concentration) <= 0) && (
+                        <p className="text-[11px] text-amber-500 mt-2">Enter mass and concentration to calculate volume.</p>
+                    )}
                 </div>
 
             </div>

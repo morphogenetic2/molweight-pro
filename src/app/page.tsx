@@ -35,23 +35,26 @@ import { RecipeLibrary } from "@/components/ui/RecipeLibrary";
 import { SaveRecipeModal } from "@/components/ui/SaveRecipeModal";
 import { HelpView } from "@/components/ui/HelpView";
 import { StockManager } from "@/components/ui/StockManager";
+import { ToastViewport } from "@/components/ui/ToastViewport";
 
-const TABS: Array<{ id: ActiveTab; label: string; icon: LucideIcon; desc: string }> = [
+const TABS: Array<{ id: ActiveTab; label: string; icon: LucideIcon; desc: string; badge?: string }> = [
     { id: "mw", label: "Molecular Weight", icon: Table2, desc: "Calculate molar mass from chemical formulas and PubChem lookup" },
     { id: "dilution", label: "Dilution Calculator", icon: Pipette, desc: "C₁V₁ = C₂V₂ calculations for solution preparation" },
-    { id: "molarity", label: "Molarity Triangle", icon: Scale, desc: "Solve for Mass, Volume, or Concentration" },
+    { id: "molarity", label: "Molarity Calculator", icon: Scale, desc: "Solve for Mass, Volume, or Concentration" },
 
     { id: "buffer_calc", label: "Buffer Calculator", icon: Calculator, desc: "Recipes for common biological buffers (Tris, PBS)" },
     { id: "buffer_recipe", label: "Recipe Builder", icon: FlaskConical, desc: "Build and save custom solution recipes" },
     { id: "stocks", label: "Stock Buffers", icon: Beaker, desc: "Manage your inventory of stock solutions" },
-    { id: "help", label: "Help & Guide", icon: HelpCircle, desc: "Learn how to use the tools and perform calculations" },
+    { id: "help", label: "Help & Guide", icon: HelpCircle, desc: "Learn how to use the tools and perform calculations", badge: "Tips" },
 ] as const;
 
 export default function Home() {
     const {
         activeTab, setActiveTab,
         setIsHistoryOpen, setIsSettingsOpen,
-        activeRecipeName
+        activeRecipeName,
+        savedRecipes,
+        stocks
     } = useStore();
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -65,6 +68,7 @@ export default function Home() {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setActiveTab("home")}
+                        aria-label="Go to dashboard"
                         className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 shadow-lg shadow-indigo-500/20"
                     >
                         <FlaskConical className="h-5 w-5" />
@@ -75,6 +79,7 @@ export default function Home() {
                 </div>
                 <button
                     onClick={() => setMobileMenuOpen(true)}
+                    aria-label="Open menu"
                     className="p-2 rounded-lg bg-white/5 border border-white/10 text-zinc-400"
                 >
                     <Menu className="h-5 w-5" />
@@ -106,7 +111,7 @@ export default function Home() {
                                     </div>
                                     <span className="text-lg font-bold">MolWeight</span>
                                 </div>
-                                <button onClick={closeMobileMenu} className="p-2 text-zinc-500">
+                                <button onClick={closeMobileMenu} aria-label="Close menu" className="p-2 text-zinc-500">
                                     <ChevronRight className="h-5 w-5 rotate-180" />
                                 </button>
                             </div>
@@ -135,7 +140,24 @@ export default function Home() {
                                             )}
                                         >
                                             <Icon className="h-5 w-5" />
-                                            <span>{tab.label}</span>
+                                            <span className="flex items-center gap-2">
+                                                {tab.label}
+                                                {tab.id === "stocks" && stocks.length > 0 && (
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                        {stocks.length}
+                                                    </span>
+                                                )}
+                                                {tab.id === "buffer_recipe" && savedRecipes.length > 0 && (
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                                        {savedRecipes.length}
+                                                    </span>
+                                                )}
+                                                {tab.badge && (
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/10">
+                                                        {tab.badge}
+                                                    </span>
+                                                )}
+                                            </span>
                                         </button>
                                     );
                                 })}
@@ -206,7 +228,26 @@ export default function Home() {
                                 )}
                             >
                                 <Icon className={cn("h-5 w-5", isActive ? "text-indigo-500" : "group-hover:text-zinc-300")} />
-                                {sidebarOpen && <span>{tab.label}</span>}
+                                {sidebarOpen && (
+                                    <span className="flex items-center gap-2">
+                                        {tab.label}
+                                        {tab.id === "stocks" && stocks.length > 0 && (
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                {stocks.length}
+                                            </span>
+                                        )}
+                                        {tab.id === "buffer_recipe" && savedRecipes.length > 0 && (
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                                {savedRecipes.length}
+                                            </span>
+                                        )}
+                                        {tab.badge && (
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/10">
+                                                {tab.badge}
+                                            </span>
+                                        )}
+                                    </span>
+                                )}
                                 {isActive && (
                                     <motion.div
                                         layoutId="active-pill"
@@ -221,6 +262,7 @@ export default function Home() {
                 <div className="p-4">
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
+                        aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
                         className="flex h-10 w-full items-center justify-center rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all text-zinc-500"
                     >
                         <Menu className="h-4 w-4" />
@@ -289,13 +331,20 @@ export default function Home() {
                                         >
                                             <div className="absolute top-0 right-0 p-32 bg-indigo-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-colors" />
 
-                                            <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white/5 border border-white/5 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                                            <div className="mb-3 sm:mb-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white/5 border border-white/5 shadow-inner group-hover:scale-110 transition-transform duration-500">
                                                 <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-400" />
                                             </div>
 
-                                            <h3 className="text-lg sm:text-xl font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">
-                                                {tab.label}
-                                            </h3>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <h3 className="text-lg sm:text-xl font-bold text-white group-hover:text-indigo-300 transition-colors">
+                                                    {tab.label}
+                                                </h3>
+                                                {tab.badge && (
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/10">
+                                                        {tab.badge}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed max-w-xs">
                                                 {tab.desc}
                                             </p>
@@ -344,6 +393,7 @@ export default function Home() {
             <SettingsModal />
             <RecipeLibrary />
             <SaveRecipeModal />
+            <ToastViewport />
         </div>
     );
 }

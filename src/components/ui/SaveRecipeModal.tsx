@@ -4,17 +4,20 @@ import { useStore } from "@/store/useStore";
 import { useState } from "react";
 import { X, Save, FileText, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useToastStore } from "@/store/useToastStore";
 
 export function SaveRecipeModal() {
     const { isSaveRecipeOpen, setIsSaveRecipeOpen, saveRecipe, solutes } = useStore();
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
+    const { push } = useToastStore();
 
     if (!isSaveRecipeOpen) return null;
 
     const handleSave = () => {
         if (!name.trim()) return;
         saveRecipe(name, description);
+        push("Recipe saved.", "success");
         setName("");
         setDescription("");
         setIsSaveRecipeOpen(false);
@@ -44,6 +47,7 @@ export function SaveRecipeModal() {
                         </div>
                         <button
                             onClick={() => setIsSaveRecipeOpen(false)}
+                            aria-label="Close save recipe dialog"
                             className="p-2 rounded-xl hover:bg-white/5 transition-colors text-zinc-500 hover:text-white"
                         >
                             <X className="h-5 w-5" />

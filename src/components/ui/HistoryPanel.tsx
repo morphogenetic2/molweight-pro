@@ -37,6 +37,7 @@ export function HistoryPanel() {
                     </div>
                     <button
                         onClick={() => setIsHistoryOpen(false)}
+                        aria-label="Close history panel"
                         className="p-2 rounded-lg hover:bg-white/5 transition-colors text-zinc-500 hover:text-white"
                     >
                         <X className="h-5 w-5" />
@@ -45,9 +46,10 @@ export function HistoryPanel() {
 
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
                     {history.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
+                        <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-60">
                             <Clock className="h-12 w-12 text-zinc-700" />
                             <p className="text-zinc-500">No recent calculations found.</p>
+                            <p className="text-[11px] text-zinc-600">Try the MW Calculator to generate history.</p>
                         </div>
                     ) : (
                         history.map((item, i) => (
