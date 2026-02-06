@@ -188,45 +188,39 @@ export default function MolarityCalculator() {
             </div>
 
             {/* Quick Lookup */}
-            <div className="space-y-4">
-                <div className="glass-card p-4 flex items-center gap-3">
-                    <button
-                        onClick={() => searchTerm && window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank')}
-                        aria-label="View search on PubChem"
-                        className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors"
-                    >
-                        <Search className="h-5 w-5" />
-                    </button>
-                    <form onSubmit={handleLookup} className="flex-1 flex gap-2">
-                        <input
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Type chemical name (e.g. NaCl)..."
-                            className="flex-1 bg-transparent border-none text-zinc-200 focus:ring-0 placeholder:text-zinc-600"
-                        />
-                        <button type="submit" disabled={searching} className="px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-sm font-medium text-zinc-300 transition-colors">
-                            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lookup"}
+            <div className="space-y-2">
+                <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2 text-zinc-500/80">Chemical Component</label>
+                <div className="flex flex-col gap-2">
+                    <div className="glass-card p-3 flex items-center gap-3">
+                        <button
+                            onClick={() => searchTerm && window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank')}
+                            aria-label="View search on PubChem"
+                            className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors"
+                        >
+                            <Search className="h-4 w-4" />
                         </button>
-                    </form>
-                </div>
-                {lookupResult && (
-                    <div className="glass-card px-6 py-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                        {lookupResult.cid && (
-                            <Image
-                                src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${lookupResult.cid}/PNG?record_type=2d&image_size=50x50`}
-                                alt={lookupResult.name || lookupResult.formula || "Structure"}
-                                width={50}
-                                height={50}
-                                className="h-10 w-10 object-contain opacity-80"
+                        <form onSubmit={handleLookup} className="flex-1 flex gap-2">
+                            <input
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Type chemical name (e.g. NaCl)..."
+                                className="flex-1 bg-transparent border-none text-zinc-200 focus:ring-0 placeholder:text-zinc-600 text-sm"
                             />
-                        )}
-                        <div className="text-sm">
-                            <span className="text-zinc-400">Result: </span>
-                            <span className="text-white font-medium">{lookupResult.name || lookupResult.formula}</span>
-                            {lookupResult.formula && <span className="ml-2 text-xs text-zinc-500 font-mono"><FormulaBadge formula={lookupResult.formula} className="inline-block" /></span>}
-                        </div>
+                            <button type="submit" disabled={searching} className="px-4 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold uppercase tracking-wider text-zinc-300 transition-colors">
+                                {searching ? <Loader2 className="h-3 w-3 animate-spin" /> : "Lookup"}
+                            </button>
+                        </form>
                     </div>
-                )}
+                    {lookupResult?.formula && (
+                        <div className="animate-in fade-in slide-in-from-top-1 duration-300 ml-[44px]">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-white/10 shadow-xl backdrop-blur-sm">
+                                <span className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider">Quick Preview:</span>
+                                <FormulaBadge formula={lookupResult.formula} className="text-[10px]" />
+                                <span className="text-[10px] font-mono text-indigo-400">{molarityState.mw} g/mol</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Main Calculator */}
