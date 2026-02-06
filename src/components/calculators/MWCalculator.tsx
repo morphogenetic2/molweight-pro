@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Loader2, AlertCircle } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { parseFormula, calculateMw, ChemicalData, normalizeFormula } from "@/lib/parser";
+import { parseFormula, calculateMw, ChemicalData, normalizeFormula, tryCalculateMw } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import Image from "next/image";
 import Molecule3D from "../ui/Molecule3D";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 
 export default function MWCalculator() {
     const { mwInput, setMwInput, mwResult, setMwResult, addToHistory } = useStore();
@@ -15,30 +16,50 @@ export default function MWCalculator() {
     const [error, setError] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
 
+    const debouncedInput = useDebounce(mwInput, 600);
+
+    // Auto-calculate for local formulas on-the-fly
+    useEffect(() => {
+        const query = debouncedInput.trim();
+        if (!query) return;
+
+        // Try local advanced parser
+        const localResult = tryCalculateMw(query);
+        if (localResult) {
+            const result: ChemicalData = {
+                mw: localResult.mw,
+                formula: localResult.formula,
+                composition: parseFormula(query),
+            };
+            setMwResult(result);
+            // Don't add to history automatically on every keystroke to avoid clutter,
+            // only when they actually type something complete or click calculate.
+            // But let's show the result immediately.
+        }
+    }, [debouncedInput, setMwResult]);
+
     const handleCalculate = async (e?: React.FormEvent<HTMLFormElement>) => {
         e?.preventDefault();
-        if (!mwInput.trim()) return;
+        const query = mwInput.trim();
+        if (!query) return;
 
         setLoading(true);
         setError(null);
 
         try {
             // 1. Try local parse first
-            // Whitelist for local parsing includes common chemical characters plus dots, stars, and now spaces for hydrates
-            if (/^[A-Za-z0-9()\[\]·*•.\s]+$/.test(mwInput) && /[A-Z]/.test(mwInput)) {
-                try {
-                    const comp = parseFormula(mwInput);
-                    const mw = calculateMw(comp);
-                    const result: ChemicalData = {
-                        mw,
-                        formula: normalizeFormula(mwInput),
-                        composition: comp,
-                    };
-                    setMwResult(result);
-                    addToHistory(result);
-                    setLoading(false);
-                    return;
-                } catch { }
+            const localResult = tryCalculateMw(query);
+            if (localResult) {
+                const comp = parseFormula(query);
+                const result: ChemicalData = {
+                    mw: localResult.mw,
+                    formula: localResult.formula,
+                    composition: comp,
+                };
+                setMwResult(result);
+                addToHistory(result);
+                setLoading(false);
+                return;
             }
 
             // 2. Try PubChem

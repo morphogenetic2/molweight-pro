@@ -29,12 +29,20 @@ export function areCompositionsEqual(c1: Composition, c2: Composition): boolean 
  * - Standardizes hydrate separators to '.' for parsing or '·' for display.
  */
 export function normalizeFormula(formula: string, forDisplay = true): string {
+    const separator = forDisplay ? "·" : "|";
     return formula
         .replace(/\((s|l|g|aq|v)\)/gi, "") // Remove phase indicators
         .replace(/(\(\d*[+-]\)|\d*[+-]|[+-])/g, "") // Remove charges
         .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (m) => "0123456789"["₀₁₂₃₄₅₆₇₈₉".indexOf(m)]) // Map unicode subscripts
-        .replace(/\s*[·*•.]\s*/g, forDisplay ? "·" : ".") // Normalize hydration dots
-        .replace(/\s+(?=\d*\.?\d*H2O|\d*\.?\d*h2o)/gi, forDisplay ? "·" : ".") // Support space before hydrate
+        // Normalize explicit hydration dots (·, *, •)
+        .replace(/\s*[·*•]\s*/g, separator)
+        // Heuristic for '.' as hydration dot: split by '.' ONLY if not a decimal point in a number
+        // Decimals are \d\.\d. If we find . not surrounded by digits, or preceded by Alpha, it's a separator.
+        .replace(/([A-Za-z)\]])\./g, `$1${separator}`)
+        .replace(/\.(\d+H2O|\d+h2o)/gi, `${separator}$1`)
+        // Space before H2O
+        .replace(/\s+(?=\d*\.?\d*H2O|\d*\.?\d*h2o)/gi, separator)
+        .replace(/\|/g, separator) // Handle internal vs display separator
         .replace(/h2o/gi, "H2O") // Case-insensitive H2O
         .trim();
 }
@@ -45,7 +53,7 @@ export function normalizeFormula(formula: string, forDisplay = true): string {
  */
 export function parseFormula(formula: string): Composition {
     const clean = normalizeFormula(formula, false);
-    const parts = clean.split(".");
+    const parts = clean.split("|");
     const totalComp: Composition = {};
 
     parts.forEach((part) => {
@@ -192,7 +200,7 @@ export function tryCalculateMw(input: string): { mw: number; formula: string } |
         const mw = calculateMw(comp);
         if (mw > 0) {
             return {
-                mw: parseFloat(mw.toFixed(4)),
+                mw: parseFloat(mw.toFixed(2)),
                 formula: normalizeFormula(trimmed, false) // un-normalized for internal storage
             };
         }

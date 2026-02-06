@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { Search, Loader2, Scale, Beaker, Pipette, Atom, ArrowRightLeft, Lock } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
-import { parseFormula, calculateMw } from "@/lib/parser";
+import { parseFormula, calculateMw, tryCalculateMw, normalizeFormula } from "@/lib/parser";
 import { getUnitLabel } from "@/lib/chemistry/units";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { Solver, denormalize } from "@/lib/chemistry/converter";
@@ -12,6 +12,7 @@ import { MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS }
 import { ValueUnitInput } from "../ui/ValueUnitInput";
 import type { MolarityState } from "@/store/storeTypes";
 import Image from "next/image";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 
 // Group units for dropdowns
 const MASS_OPTS = Object.keys(MASS_UNITS);
@@ -28,6 +29,21 @@ export default function MolarityCalculator() {
     const [searchTerm, setSearchTerm] = useState("");
     const [searching, setSearching] = useState(false);
     const [lookupResult, setLookupResult] = useState<{ name?: string, formula?: string, cid?: number } | null>(null);
+
+    const debouncedSearch = useDebounce(searchTerm, 600);
+
+    // Auto-calculate for local formulas on-the-fly
+    useEffect(() => {
+        const query = debouncedSearch.trim();
+        if (!query) return;
+
+        const res = tryCalculateMw(query);
+        if (res) {
+            setMolarityState({ mw: res.mw });
+            setLookupResult({ formula: res.formula });
+        }
+    }, [debouncedSearch, setMolarityState]);
+
     const num = (v: string | number) => {
         const n = parseFloat(String(v));
         return Number.isFinite(n) ? n : 0;
@@ -58,17 +74,16 @@ export default function MolarityCalculator() {
         setLookupResult(null);
 
         try {
-            if (/^[A-Za-z0-9()\[\]·*•.]+$/.test(query) && /[A-Z]/.test(query)) {
-                try {
-                    const comp = parseFormula(query);
-                    const mw = calculateMw(comp);
-                    setMolarityState({ mw });
-                    setLookupResult({ formula: query });
-                    setSearching(false);
-                    return;
-                } catch { }
+            // 1. Try local parse first
+            const localResult = tryCalculateMw(query);
+            if (localResult) {
+                setMolarityState({ mw: localResult.mw });
+                setLookupResult({ formula: localResult.formula });
+                setSearching(false);
+                return;
             }
 
+            // 2. Fallback to PubChem
             const res = await lookupPubChem(query);
             if (res) {
                 setMolarityState({ mw: res.mw });
@@ -228,6 +243,12 @@ export default function MolarityCalculator() {
                                     type="number"
                                     value={molarityState.mw || ""}
                                     onChange={(e) => update('mw', e.target.value)}
+                                    onBlur={(e) => {
+                                        const val = parseFloat(e.target.value);
+                                        if (Number.isFinite(val)) {
+                                            update('mw', val.toFixed(2));
+                                        }
+                                    }}
                                     placeholder="0.00"
                                     className="w-full bg-transparent border-none text-lg font-mono focus:ring-0 p-0 text-white"
                                 />

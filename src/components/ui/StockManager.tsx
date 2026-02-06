@@ -10,7 +10,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { parseValueWithUnit } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
+import { useDebounce } from "@/lib/hooks/useDebounce";
 import { tryCalculateMw } from "@/lib/parser";
+import { useEffect } from "react";
 
 export function StockManager() {
     const { stocks, addStock, removeStock } = useStore();
@@ -26,6 +28,22 @@ export function StockManager() {
 
     // Warning Modal State
     const [showWarning, setShowWarning] = useState(false);
+
+    // Live Preview State
+    const [liveMW, setLiveMW] = useState<number | null>(null);
+    const [liveFormula, setLiveFormula] = useState<string | null>(null);
+    const debouncedName = useDebounce(newName, 500);
+
+    useEffect(() => {
+        const res = tryCalculateMw(debouncedName);
+        if (res) {
+            setLiveMW(res.mw);
+            setLiveFormula(res.formula);
+        } else {
+            setLiveMW(null);
+            setLiveFormula(null);
+        }
+    }, [debouncedName]);
 
     const saveStock = (mw: number, formula: string) => {
         const concParsed = parseValueWithUnit(newConc, ["M", "mM", "μM", "mg/mL", "g/L", "pct"]);
@@ -183,6 +201,13 @@ export function StockManager() {
                                         placeholder="e.g. Tris-HCl"
                                         className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-emerald-500/50"
                                     />
+                                    {liveFormula && (
+                                        <div className="flex items-center gap-2 mt-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                                            <span className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider">Quick Preview:</span>
+                                            <FormulaBadge formula={liveFormula} className="text-[10px]" />
+                                            <span className="text-[10px] font-mono text-indigo-400">{liveMW} g/mol</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -267,7 +292,7 @@ export function StockManager() {
                                 <div className="flex items-end gap-6">
                                     <div>
                                         <span className="block text-[10px] font-bold text-zinc-500 uppercase">MW</span>
-                                        <span className="font-mono text-zinc-300 text-sm">{stock.mw}</span>
+                                        <span className="font-mono text-zinc-300 text-sm">{Number(stock.mw).toFixed(2)}</span>
                                     </div>
                                     {stock.volume && (
                                         <div>

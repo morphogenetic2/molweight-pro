@@ -70,7 +70,7 @@ export async function lookupPubChem(query: string): Promise<Partial<ChemicalData
 
         return {
             cid,
-            mw: parseFloat(prop.MolecularWeight),
+            mw: parseFloat(parseFloat(prop.MolecularWeight).toFixed(2)),
             formula: normalizeFormula(bestFormula, false), // Store as clean but standardizable
             name: prop.IUPACName,
             synonyms,

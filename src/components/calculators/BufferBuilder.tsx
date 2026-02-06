@@ -349,7 +349,8 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                             const raw = e.target.value;
                             const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
                             if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
-                                updateSolute(solute.id, { mw: parsed.value });
+                                const roundedVal = parseFloat(parseFloat(parsed.value).toFixed(2));
+                                updateSolute(solute.id, { mw: roundedVal.toString() });
                             } else {
                                 updateSolute(solute.id, { mw: raw.trim() });
                             }

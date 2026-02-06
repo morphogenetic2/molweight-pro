@@ -1,5 +1,5 @@
 import { useStore } from "@/store/useStore";
-import { formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
+import { formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel, tryCalculateMw } from "@/lib/parser";
 import { parseValueWithUnit } from "@/lib/chemistry/units";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "lucide-react";
@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
+import { FormulaBadge } from "../ui/FormulaBadge";
 
 
 export default function DilutionCalculator() {
@@ -41,7 +42,7 @@ export default function DilutionCalculator() {
         addedSolute.name !== dilution.name
     ) : false;
 
-    // Button State: 
+    // Button State:
     // - "add": Not added yet, or added but then removed from list
     // - "added": Added and matches current state
     // - "update": Added but current state is different (dirty)
@@ -77,6 +78,9 @@ export default function DilutionCalculator() {
         }
     };
 
+    const [liveMW, setLiveMW] = useState<number | null>(null);
+    const [liveFormula, setLiveFormula] = useState<string | null>(null);
+
     const debouncedName = useDebounce(dilution.name, 600);
 
     useEffect(() => {
@@ -86,28 +90,34 @@ export default function DilutionCalculator() {
     useEffect(() => {
         const triggerLookup = async () => {
             const query = debouncedName.trim();
-            if (!query) return;
+            if (!query) {
+                setLiveMW(null);
+                setLiveFormula(null);
+                return;
+            }
+
+            // Always reset live state for a new search to avoid 'ghosting' results
+            setLiveMW(null);
+            setLiveFormula(null);
+
+            // 1. Try local parse
+            const localResult = tryCalculateMw(query);
+            if (localResult) {
+                setDilution({ mw: localResult.mw });
+                setLiveMW(localResult.mw);
+                setLiveFormula(localResult.formula);
+                return;
+            }
 
             setIsSearching(true);
             try {
-                // 1. Try local parse
-                if (/^[A-Za-z0-9()\[\]·*•.]+$/.test(query) && /[A-Z]/.test(query)) {
-                    try {
-                        const composition = parseFormula(query);
-                        const mw = calculateMw(composition);
-                        setDilution({ mw });
-                        setIsSearching(false);
-                        return;
-                } catch { }
-                }
-
                 // 2. Try PubChem
                 const res = await lookupPubChem(query);
                 if (res && res.mw) {
-                    // Only store serializable primitive values
-                    setDilution({
-                        mw: Number(res.mw),
-                    });
+                    const mw = parseFloat(res.mw.toFixed(2));
+                    setDilution({ mw });
+                    setLiveMW(mw);
+                    setLiveFormula(res.formula || null);
                 }
             } catch (err) {
                 console.error("Lookup error:", err);
@@ -201,35 +211,46 @@ export default function DilutionCalculator() {
     return (
         <div className="max-w-4xl mx-auto space-y-4 sm:space-y-8 pb-10">
             {/* Chemical Info Header */}
-            <section className="glass-card flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 !py-4">
+            <section className="glass-card flex flex-col sm:flex-row items-start gap-4 sm:gap-6 !py-4">
                 <div className="w-full sm:flex-1">
-                    <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2">Chemical Component</label>
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={handleExternalLookup}
-                            title="View on PubChem"
-                            className="shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
-                        >
-                            <Search className="h-4 w-4" />
-                        </button>
-                        <div className="relative flex-1 group">
-                            <input
-                                type="text"
-                                placeholder="Chemical Name or Formula"
-                                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none text-sm"
-                                value={dilution.name}
-                                onChange={(e) => setDilution({ name: e.target.value })}
-                            />
-                            {isSearching && (
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                    <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                                </div>
-                            )}
+                    <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2 text-zinc-500/80">Chemical Component</label>
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={handleExternalLookup}
+                                title="View on PubChem"
+                                className="shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
+                            >
+                                <Search className="h-4 w-4" />
+                            </button>
+                            <div className="relative flex-1 group">
+                                <input
+                                    type="text"
+                                    placeholder="Chemical Name or Formula"
+                                    className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none text-sm"
+                                    value={dilution.name}
+                                    onChange={(e) => setDilution({ name: e.target.value })}
+                                />
+                                {isSearching && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                                    </div>
+                                )}
+                            </div>
                         </div>
+                        {liveFormula && (
+                            <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+                                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-white/10 shadow-xl backdrop-blur-sm ml-[44px] sm:ml-[48px]">
+                                    <span className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-wider">Quick Preview:</span>
+                                    <FormulaBadge formula={liveFormula} className="text-[10px]" />
+                                    <span className="text-[10px] font-mono text-indigo-400">{liveMW} g/mol</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
-                <div className="w-full sm:w-40">
+                <div className="w-full sm:w-44">
                     <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2">Molecular Weight</label>
                     <div className="flex items-center gap-2">
                         <input
@@ -250,8 +271,9 @@ export default function DilutionCalculator() {
                                 const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
                                 const num = parseFloat(parsed.value);
                                 if (Number.isFinite(num)) {
-                                    setDilution({ mw: num });
-                                    setMwInput(parsed.value);
+                                    const rounded = parseFloat(num.toFixed(2));
+                                    setDilution({ mw: rounded });
+                                    setMwInput(rounded.toString());
                                 } else {
                                     setMwInput(raw.trim());
                                 }
@@ -269,7 +291,7 @@ export default function DilutionCalculator() {
                 {/* Stock Solution */}
                 <section className="glass-card">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-base sm:text-lg font-semibold text-indigo-400">Stock Solution (C1)</h3>
+                        <h3 className="text-base sm:text-lg font-semibold text-indigo-400">Stock Solution (C<sub>1</sub>)</h3>
                         <div className="relative">
                             <button
                                 onClick={() => setIsStockSelectOpen(!isStockSelectOpen)}
@@ -337,7 +359,7 @@ export default function DilutionCalculator() {
 
                 {/* Target Solution */}
                 <section className="glass-card border-indigo-500/20">
-                    <h3 className="text-base sm:text-lg font-semibold mb-4 text-emerald-400">Target Solution (C2, V2)</h3>
+                    <h3 className="text-base sm:text-lg font-semibold mb-4 text-emerald-400">Target Solution (C<sub>2</sub>, V<sub>2</sub>)</h3>
                     <div className="space-y-4">
                         <div className="flex gap-2">
                             <ValueUnitInput
