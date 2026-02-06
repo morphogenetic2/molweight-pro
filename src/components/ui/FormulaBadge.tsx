@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils";
+import { normalizeFormula } from "@/lib/parser";
 
 interface FormulaBadgeProps {
     formula: string;
@@ -7,9 +8,11 @@ interface FormulaBadgeProps {
 }
 
 export function FormulaBadge({ formula, className }: FormulaBadgeProps) {
-    // Use regex to find letters followed by numbers
-    // Regex to split by numbers and common hydrate separators
-    const parts = formula.split(/(\d+|[·*•.])/);
+    // 1. Normalize for display (standardize dots, strips junk)
+    const normalized = normalizeFormula(formula, true);
+    
+    // 2. Split by numbers (including decimals) and our standardized middle dot
+    const parts = normalized.split(/(\d+\.\d+|\d+|·)/);
 
     return (
         <span className={cn(
@@ -19,10 +22,11 @@ export function FormulaBadge({ formula, className }: FormulaBadgeProps) {
             {parts.map((part, i) => {
                 if (!part) return null;
 
-                if (/^\d+$/.test(part)) {
+                // Handle numbers (including those with decimal points)
+                if (/^(\d+\.\d+|\d+)$/.test(part)) {
                     // It's a multiplier if it's the first part or follows a separator
                     const prevPart = i > 0 ? parts[i - 1] : null;
-                    const isMultiplier = !prevPart || /^[·*•.]$/.test(prevPart);
+                    const isMultiplier = !prevPart || prevPart === "·";
 
                     if (isMultiplier) {
                         return <span key={i}>{part}</span>;

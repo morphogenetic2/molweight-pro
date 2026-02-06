@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { parseValueWithUnit } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
+import { tryCalculateMw } from "@/lib/parser";
 
 export function StockManager() {
     const { stocks, addStock, removeStock } = useStore();
@@ -61,8 +62,15 @@ export function StockManager() {
     const handleCreate = async () => {
         if (!newName || !newConc) return;
 
+        // 1. Try local advanced parser first
+        const localResult = tryCalculateMw(newName);
+        if (localResult) {
+            saveStock(localResult.mw, localResult.formula);
+            return;
+        }
+
         try {
-            // PubChem Lookup
+            // 2. Fallback to PubChem Lookup
             const res = await lookupPubChem(newName);
 
             if (res) {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Search, Loader2, AlertCircle } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { parseFormula, calculateMw, ChemicalData } from "@/lib/parser";
+import { parseFormula, calculateMw, ChemicalData, normalizeFormula } from "@/lib/parser";
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import Image from "next/image";
@@ -24,13 +24,14 @@ export default function MWCalculator() {
 
         try {
             // 1. Try local parse first
-            if (/^[A-Za-z0-9()\[\]·*•.]+$/.test(mwInput) && /[A-Z]/.test(mwInput)) {
+            // Whitelist for local parsing includes common chemical characters plus dots, stars, and now spaces for hydrates
+            if (/^[A-Za-z0-9()\[\]·*•.\s]+$/.test(mwInput) && /[A-Z]/.test(mwInput)) {
                 try {
                     const comp = parseFormula(mwInput);
                     const mw = calculateMw(comp);
                     const result: ChemicalData = {
                         mw,
-                        formula: mwInput,
+                        formula: normalizeFormula(mwInput),
                         composition: comp,
                     };
                     setMwResult(result);
@@ -47,7 +48,7 @@ export default function MWCalculator() {
                 // Create a clean, serializable object
                 const result: ChemicalData = {
                     mw: Number(res.mw),
-                    formula: String(res.formula),
+                    formula: normalizeFormula(res.formula!),
                     name: res.name ? String(res.name) : undefined,
                     cid: res.cid ? Number(res.cid) : undefined,
                     composition: comp

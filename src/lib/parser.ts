@@ -11,26 +11,56 @@ export interface ChemicalData {
     synonyms?: string[];
     solubility?: string;
 }
+/**
+ * Compares two elemental compositions for equality.
+ */
+export function areCompositionsEqual(c1: Composition, c2: Composition): boolean {
+    const keys1 = Object.keys(c1);
+    const keys2 = Object.keys(c2);
+    if (keys1.length !== keys2.length) return false;
+    return keys1.every(key => c1[key] === c2[key]);
+}
+
+/**
+ * Normalizes a chemical formula for parsing or display.
+ * - Strips phase indicators: (s), (l), (g), (aq)
+ * - Strips charges: (2+), ++, +, etc.
+ * - Maps unicode subscripts: ₀₁₂ to 012
+ * - Standardizes hydrate separators to '.' for parsing or '·' for display.
+ */
+export function normalizeFormula(formula: string, forDisplay = true): string {
+    return formula
+        .replace(/\((s|l|g|aq|v)\)/gi, "") // Remove phase indicators
+        .replace(/(\(\d*[+-]\)|\d*[+-]|[+-])/g, "") // Remove charges
+        .replace(/[₀₁₂₃₄₅₆₇₈₉]/g, (m) => "0123456789"["₀₁₂₃₄₅₆₇₈₉".indexOf(m)]) // Map unicode subscripts
+        .replace(/\s*[·*•.]\s*/g, forDisplay ? "·" : ".") // Normalize hydration dots
+        .replace(/\s+(?=\d*\.?\d*H2O|\d*\.?\d*h2o)/gi, forDisplay ? "·" : ".") // Support space before hydrate
+        .replace(/h2o/gi, "H2O") // Case-insensitive H2O
+        .trim();
+}
 
 /**
  * Parses a chemical formula into its elemental composition.
  * Supports hydrates (.), parentheses (), and brackets [].
  */
 export function parseFormula(formula: string): Composition {
-    const parts = formula.replace(/[·*•]/g, ".").split(".");
+    const clean = normalizeFormula(formula, false);
+    const parts = clean.split(".");
     const totalComp: Composition = {};
 
     parts.forEach((part) => {
         let multiplier = 1;
-        const multMatch = part.match(/^(\d+)(.*)$/);
+        // Support decimal multipliers (e.g. 0.5H2O)
+        const multMatch = part.match(/^(\d*\.?\d+)(.*)$/);
         let formulaPart = part;
 
-        if (multMatch && multMatch[2].length > 0 && !/^\d+$/.test(multMatch[2])) {
-            multiplier = parseInt(multMatch[1]);
+        if (multMatch && multMatch[2].length > 0 && !/^\d*\.?\d+$/.test(multMatch[2])) {
+            multiplier = parseFloat(multMatch[1]);
             formulaPart = multMatch[2];
         }
 
-        const tokens = formulaPart.match(/([A-Z][a-z]?|\d+|\(|\)|\[|\])/g);
+        // Support decimals in element counts (e.g. Fe0.5O)
+        const tokens = formulaPart.match(/([A-Z][a-z]?|\d+\.\d+|\d+|\(|\)|\[|\])/g);
         if (!tokens || tokens.join("") !== formulaPart) {
             throw new Error(`Invalid formula: ${formulaPart}`);
         }
@@ -47,8 +77,8 @@ export function parseFormula(formula: string): Composition {
 
                 const next = tokens[i + 1];
                 let groupMult = 1;
-                if (next && /^\d+$/.test(next)) {
-                    groupMult = parseInt(next);
+                if (next && /^(\d+\.\d+|\d+)$/.test(next)) {
+                    groupMult = parseFloat(next);
                     i++;
                 }
 
@@ -63,8 +93,8 @@ export function parseFormula(formula: string): Composition {
 
                 const next = tokens[i + 1];
                 let count = 1;
-                if (next && /^\d+$/.test(next)) {
-                    count = parseInt(next);
+                if (next && /^(\d+\.\d+|\d+)$/.test(next)) {
+                    count = parseFloat(next);
                     i++;
                 }
 
@@ -142,6 +172,34 @@ export function formatConcentration(val: number | string, unit: string): string 
         default:
             return n.toString();
     }
+}
+/**
+ * Safely attempts to calculate MW from a string input.
+ * Returns the MW and normalized formula if valid, otherwise null.
+ */
+export function tryCalculateMw(input: string): { mw: number; formula: string } | null {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+
+    // Must contain at least one capital letter (Element)
+    if (!/[A-Z]/.test(trimmed)) return null;
+
+    // Whitelist for local parsing
+    if (!/^[A-Za-z0-9()\[\]·*•.\s₀₁₂₃₄₅₆₇₈₉+-]+$/.test(trimmed)) return null;
+
+    try {
+        const comp = parseFormula(trimmed);
+        const mw = calculateMw(comp);
+        if (mw > 0) {
+            return {
+                mw: parseFloat(mw.toFixed(4)),
+                formula: normalizeFormula(trimmed, false) // un-normalized for internal storage
+            };
+        }
+    } catch {
+        // Silently fail if parsing error
+    }
+    return null;
 }
 
 

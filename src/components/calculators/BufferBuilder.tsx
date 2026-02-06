@@ -5,7 +5,7 @@ import { useStore } from "@/store/useStore";
 import type { Solute } from "@/store/storeTypes";
 import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker, Printer } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
-import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel } from "@/lib/parser";
+import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel, tryCalculateMw } from "@/lib/parser";
 import { parseValueWithUnit } from "@/lib/chemistry/units";
 import { lookupPubChem } from "@/lib/api";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -27,18 +27,19 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
 
             if (solute.formula === query) return;
 
+            // 1. Try local advanced parser first
+            const localResult = tryCalculateMw(query);
+            if (localResult) {
+                updateSolute(solute.id, {
+                    mw: localResult.mw.toString(),
+                    formula: localResult.formula
+                });
+                return;
+            }
+
+            // 2. Fallback to PubChem
             setIsSearching(true);
             try {
-                if (/^[A-Za-z0-9()\[\]·*•.]+$/.test(query) && /[A-Z]/.test(query)) {
-                    try {
-                        const composition = parseFormula(query);
-                        const mw = calculateMw(composition);
-                        updateSolute(solute.id, { mw: mw.toFixed(2), formula: query });
-                        setIsSearching(false);
-                        return;
-                } catch { }
-                }
-
                 const res = await lookupPubChem(query);
                 if (res) {
                     updateSolute(solute.id, {
