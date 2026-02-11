@@ -226,3 +226,6 @@ This project is open source and available for personal and educational use.
 
 **Contributors:**
 [tr4m0ryp](https://github.com/tr4m0ryp)
+
+
+last note: this is what happens when you let an LLM loose on a codebase without supervision: prime AI slop for the masses.
