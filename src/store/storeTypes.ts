@@ -5,6 +5,7 @@ export type ActiveTab =
     | "home"
     | "mw"
     | "dilution"
+    | "serial_dilution"
     | "buffer_calc"
     | "buffer_recipe"
     | "molarity"
@@ -155,6 +156,27 @@ export interface MolaritySlice {
     setMolarityState: (data: Partial<MolarityState>) => void;
 }
 
+export type SerialDilutionMode = "auto" | "custom";
+
+export interface SerialDilutionState {
+    mode: SerialDilutionMode;
+    startConcentration: string;
+    targetConcentration: string;
+    concentrationUnit: string;
+    finalVolume: string;
+    volumeUnit: string;
+    autoRatio: string;
+    customRatios: string;
+    exactLastStep: boolean;
+    minPipetteVolumeUl: number;
+}
+
+export interface SerialDilutionSlice {
+    serialDilutionState: SerialDilutionState;
+    setSerialDilutionState: (data: Partial<SerialDilutionState>) => void;
+    resetSerialDilutionState: () => void;
+}
+
 export interface RecipesSlice {
     savedRecipes: Recipe[];
     saveRecipe: (name: string, description: string) => void;
@@ -181,6 +203,7 @@ export interface AppState
         BufferRecipeSlice,
         BufferCalcSlice,
         MolaritySlice,
+        SerialDilutionSlice,
         RecipesSlice,
         StocksSlice {
     resetStore: () => void;

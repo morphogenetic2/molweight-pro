@@ -7,6 +7,7 @@ import { createDilutionSlice, DEFAULT_DILUTION } from "@/store/slices/dilutionSl
 import { createBufferRecipeSlice } from "@/store/slices/bufferRecipeSlice";
 import { createBufferCalcSlice, DEFAULT_BUFFER_CONFIG } from "@/store/slices/bufferCalcSlice";
 import { createMolaritySlice, DEFAULT_MOLARITY } from "@/store/slices/molaritySlice";
+import { createSerialDilutionSlice, DEFAULT_SERIAL_DILUTION } from "@/store/slices/serialDilutionSlice";
 import { createRecipesSlice } from "@/store/slices/recipesSlice";
 import { createStocksSlice, DEFAULT_ADJUSTMENT_STOCKS } from "@/store/slices/stocksSlice";
 import { DEFAULT_MOLECULE_SETTINGS } from "@/store/slices/uiSlice";
@@ -20,6 +21,7 @@ export const useStore = create<AppState>()(
             ...createBufferRecipeSlice(set, get, api),
             ...createBufferCalcSlice(set, get, api),
             ...createMolaritySlice(set, get, api),
+            ...createSerialDilutionSlice(set, get, api),
             ...createRecipesSlice(set, get, api),
             ...createStocksSlice(set, get, api),
 
@@ -34,6 +36,7 @@ export const useStore = create<AppState>()(
                     activeRecipeName: null,
                     bufferConfig: DEFAULT_BUFFER_CONFIG,
                     molarityState: DEFAULT_MOLARITY,
+                    serialDilutionState: DEFAULT_SERIAL_DILUTION,
                     adjustmentStocks: DEFAULT_ADJUSTMENT_STOCKS
                 });
             }
@@ -117,6 +120,27 @@ export const useStore = create<AppState>()(
                     atomVisualization: mappedAtomVisualization,
                     maxRenderSize: mappedMaxRenderSize,
                 } as AppState["moleculeSettings"];
+
+                const rawSerialState = state.serialDilutionState as unknown;
+                const serialState =
+                    typeof rawSerialState === "object" && rawSerialState !== null
+                        ? (rawSerialState as Partial<typeof DEFAULT_SERIAL_DILUTION>)
+                        : {};
+
+                const mode = serialState.mode === "custom" ? "custom" : "auto";
+                const allowedPipetteMinimums = new Set([0.001, 0.01, 0.02, 0.2, 1]);
+                const minPipetteVolumeUl =
+                    typeof serialState.minPipetteVolumeUl === "number" &&
+                    allowedPipetteMinimums.has(serialState.minPipetteVolumeUl)
+                        ? serialState.minPipetteVolumeUl
+                        : DEFAULT_SERIAL_DILUTION.minPipetteVolumeUl;
+                state.serialDilutionState = {
+                    ...DEFAULT_SERIAL_DILUTION,
+                    ...serialState,
+                    mode,
+                    exactLastStep: Boolean(serialState.exactLastStep),
+                    minPipetteVolumeUl,
+                };
 
                 return state;
             },

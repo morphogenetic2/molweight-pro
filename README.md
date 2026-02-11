@@ -7,6 +7,7 @@ A comprehensive suite of digital tools designed for molecular biologists and che
 ---
 
 ## Table of Contents
+
 - [Features](#features)
 - [Getting Started](#getting-started)
 - [Technology Stack](#technology-stack)
@@ -21,23 +22,27 @@ A comprehensive suite of digital tools designed for molecular biologists and che
 ## Features
 
 ### Molecular Weight Calculator
+
 - **Smart Parsing**: Calculate molecular weights from chemical formulas (e.g., `C6H12O6`) or common names (e.g., `Aspirin`)
 - **PubChem Integration**: Automatically fetches molecular data and 2D structure images
 - **History Tracking**: Persistent history of recent calculations for quick reference
 - **Offline-Capable**: Local formula parsing works without internet connection
 
 ### Dilution Calculator
+
 - **C₁V₁ = C₂V₂ Implementation**: Accurate dilution calculations with full unit conversion
 - **Multi-Unit Support**: Seamless conversion between M, mM, μM, g/L, mg/mL, and percentage concentrations
 - **Volume Units**: Automatic formatting for L, mL, and μL
 - **Integrated Workflow**: Import molecular weights directly from MW Calculator
 
 ### Molarity Calculator
+
 - **Flexible Solving**: Calculate mass, concentration, or volume by selecting target variable
 - **Dynamic Units**: Real-time conversion between molarity and mass-based concentrations
 - **Scientific Accuracy**: Precise calculations following laboratory standards
 
 ### Buffer Calculator & Recipe Builder
+
 - **Reference Library**: Pre-configured recipes for common buffers (PBS, Tris-EDTA, TAE, RIPA)
 - **Custom Recipes**: Build complex multi-component solutions with automatic mass calculations
 - **Stock Solutions**: Support for diluting from concentrated stocks
@@ -49,6 +54,7 @@ A comprehensive suite of digital tools designed for molecular biologists and che
 ## Getting Started
 
 ### Prerequisites
+
 - **Node.js** 18.x or higher
 - **npm** 9.x or higher
 
@@ -93,6 +99,7 @@ npm run start
 | **Lucide React** | Latest | Icon library |
 
 **External APIs:**
+
 - **PubChem PUG REST API**: Chemical compound data and structure images
 
 ---
@@ -207,14 +214,13 @@ This project is open source and available for personal and educational use.
 
 ---
 
-## Acknowledgments
+## Acknowledgements
 
 - **PubChem** for providing free access to chemical compound data
-- **IUPAC** for standard atomic weight values
 - **Vercel** for hosting and deployment platform
 - **GitHub** for hosting and deployment platform
-
-- **Gemini 3, Claude 4.5, and Codex 5.3 for the heavy lifting**
+- **Gemini 3, Claude 4.5, and Codex 5.x** for the heavy lifting
+- **Antigravity, VScode, opencode, codex CLI and other tools** for making this fun.
 
 ---
 
@@ -227,5 +233,4 @@ This project is open source and available for personal and educational use.
 **Contributors:**
 [tr4m0ryp](https://github.com/tr4m0ryp)
 
-
-last note: this is what happens when you let an LLM loose on a codebase without supervision: prime AI slop for the masses.
+This is what happens when you let an LLM loose on a codebase without supervision: prime AI slop for the masses.
