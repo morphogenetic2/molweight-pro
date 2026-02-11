@@ -63,7 +63,8 @@ export default function Molecule3D({ cid }: Molecule3DProps) {
 
     // Initialize and render molecule
     useEffect(() => {
-        if (!libLoaded || !containerRef.current || !cid) return;
+        const container = containerRef.current;
+        if (!libLoaded || !container || !cid) return;
 
         const initViewer = async () => {
             setLoading(true);
@@ -80,7 +81,7 @@ export default function Molecule3D({ cid }: Molecule3DProps) {
                     if (!window.$3Dmol) {
                         throw new Error("3Dmol library is not available.");
                     }
-                    viewerRef.current = window.$3Dmol.createViewer(containerRef.current);
+                    viewerRef.current = window.$3Dmol.createViewer(container);
                 }
 
                 const v = viewerRef.current;

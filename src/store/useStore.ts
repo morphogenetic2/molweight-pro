@@ -87,9 +87,10 @@ export const useStore = create<AppState>()(
                     }
                 }
 
+                const moleculeSettings = state.moleculeSettings as unknown;
                 const rawMoleculeSettings =
-                    typeof state.moleculeSettings === "object" && state.moleculeSettings !== null
-                        ? (state.moleculeSettings as Record<string, unknown>)
+                    typeof moleculeSettings === "object" && moleculeSettings !== null
+                        ? (moleculeSettings as Record<string, unknown>)
                         : {};
 
                 const rawAtomVisualization = rawMoleculeSettings.atomVisualization;
