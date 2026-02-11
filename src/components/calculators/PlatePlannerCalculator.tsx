@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertCircle, LayoutGrid, WandSparkles } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { AlertCircle, LayoutGrid, Minus, Plus } from "lucide-react";
 import { parseDilutionFactor } from "@/lib/chemistry/dilution";
 import { convertUnitValue, getUnitLabel, parseValueWithUnit } from "@/lib/chemistry/units";
 import {
@@ -9,7 +9,9 @@ import {
     buildOrderedDilutionFactors,
     buildPerceptualShadeStyles,
     buildSequentialDilutionSteps,
+    detectLaneReplicateSuggestions,
     findMonotonicIncreaseViolations,
+    type LaneReplicateSuggestion,
     type FillMode,
     type OrderedDilutionFactor,
     type WellShadeStyle,
@@ -95,6 +97,34 @@ interface Coord {
     col: number;
 }
 
+interface QuickReplicateAction {
+    axis: FillMode;
+    targetLanes: number[];
+    blockTargets: Array<{
+        blockId: number;
+        sourceLane: number;
+        targetLane: number;
+    }>;
+    writes: Array<{
+        wellId: string;
+        previousRaw: string;
+        nextRaw: string;
+    }>;
+}
+
+interface ReplicateBlock {
+    id: number;
+    axis: FillMode;
+    lanes: number[];
+}
+
+interface LaneBlockMeta {
+    blockId: number;
+    blockOrdinal: number;
+    laneOrdinal: number;
+    colorHex: string;
+}
+
 const PLATE_PRESETS: PlatePreset[] = [
     { key: "P6", label: "P6 (2x3)", rows: 2, cols: 3 },
     { key: "P12", label: "P12 (3x4)", rows: 3, cols: 4 },
@@ -122,6 +152,7 @@ const BLANK_TOKEN = "BLANK";
 const SHADE_BIN_COLORS_LOW_TO_HIGH = ["#183746", "#1f4f60", "#2a6878", "#36858f", "#4ca9a5", "#75c7b8"];
 const SHADE_BACKGROUND_ALPHA = 0.34;
 const SHADE_BORDER_ALPHA = 0.7;
+const REPLICATE_BLOCK_COLORS = ["#60a5fa", "#34d399", "#f59e0b", "#f472b6", "#a78bfa", "#22d3ee"];
 const BLANK_SHADE_STYLE: WellShadeStyle = {
     backgroundColor: "rgba(15, 23, 42, 0.22)",
     borderColor: "rgba(100, 116, 139, 0.26)",
@@ -141,12 +172,6 @@ function hexToRgba(hex: string, alpha: number): string {
 function parsePositiveNumber(raw: string): number | null {
     const value = Number.parseFloat(raw);
     if (!Number.isFinite(value) || value <= 0) return null;
-    return value;
-}
-
-function parseNonNegativeInteger(raw: string): number | null {
-    const value = Number.parseInt(raw, 10);
-    if (!Number.isFinite(value) || value < 0) return null;
     return value;
 }
 
@@ -247,57 +272,16 @@ function toIndex(coord: Coord, cols: number): number {
     return coord.row * cols + coord.col;
 }
 
-function getSourceBoundingBox(sourceCoords: Coord[]): { minRow: number; maxRow: number; minCol: number; maxCol: number } {
-    return sourceCoords.reduce(
-        (acc, coord) => ({
-            minRow: Math.min(acc.minRow, coord.row),
-            maxRow: Math.max(acc.maxRow, coord.row),
-            minCol: Math.min(acc.minCol, coord.col),
-            maxCol: Math.max(acc.maxCol, coord.col),
-        }),
-        { minRow: Number.POSITIVE_INFINITY, maxRow: Number.NEGATIVE_INFINITY, minCol: Number.POSITIVE_INFINITY, maxCol: Number.NEGATIVE_INFINITY }
-    );
+function getReplicateCountForAxis(blocks: ReplicateBlock[], axis: FillMode): number {
+    const axisBlocks = blocks.filter((block) => block.axis === axis);
+    if (axisBlocks.length === 0) return 1;
+    return Math.max(...axisBlocks.map((block) => block.lanes.length));
 }
 
-function areArraysEqual(a: string[], b: string[]): boolean {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i += 1) {
-        if (a[i] !== b[i]) return false;
-    }
-    return true;
-}
-
-function rowsMatchReplicateGroups(matrix: string[][], replicates: number): boolean {
-    if (replicates <= 1) return true;
-    if (matrix.length % replicates !== 0) return false;
-
-    for (let groupStart = 0; groupStart < matrix.length; groupStart += replicates) {
-        const reference = matrix[groupStart];
-        for (let offset = 1; offset < replicates; offset += 1) {
-            if (!areArraysEqual(reference, matrix[groupStart + offset])) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-function columnsMatchReplicateGroups(matrix: string[][], replicates: number): boolean {
-    if (replicates <= 1) return true;
-    const width = matrix[0]?.length ?? 0;
-    if (width === 0) return true;
-    if (width % replicates !== 0) return false;
-
-    for (let groupStart = 0; groupStart < width; groupStart += replicates) {
-        for (let offset = 1; offset < replicates; offset += 1) {
-            for (let row = 0; row < matrix.length; row += 1) {
-                if (matrix[row][groupStart] !== matrix[row][groupStart + offset]) {
-                    return false;
-                }
-            }
-        }
-    }
-    return true;
+function applyOverageToTotal(baseVolume: number, overagePercent: number): number {
+    if (!Number.isFinite(baseVolume) || baseVolume <= 0) return 0;
+    if (!Number.isFinite(overagePercent) || overagePercent <= 0) return baseVolume;
+    return baseVolume + (baseVolume * overagePercent) / 100;
 }
 
 export default function PlatePlannerCalculator() {
@@ -313,16 +297,18 @@ export default function PlatePlannerCalculator() {
     const [startValue, setStartValue] = useState("0.5");
     const [startUnit, setStartUnit] = useState("M");
 
-    const [replicates, setReplicates] = useState("2");
-    const [extraSamples, setExtraSamples] = useState("0");
+    const [replicates, setReplicates] = useState("1");
     const [overagePercent, setOveragePercent] = useState("10");
 
     const [perWellVolume, setPerWellVolume] = useState("100");
     const [perWellVolumeUnit, setPerWellVolumeUnit] = useState("μL");
 
     const [wellValues, setWellValues] = useState<Record<string, string>>({});
-    const [fillFeedback, setFillFeedback] = useState<string | null>(null);
     const [preparationMethod, setPreparationMethod] = useState<PreparationMethod>("direct");
+    const [hoveredReplicateLane, setHoveredReplicateLane] = useState<number | null>(null);
+    const [replicateBlocks, setReplicateBlocks] = useState<ReplicateBlock[]>([]);
+    const [quickReplicateHistory, setQuickReplicateHistory] = useState<QuickReplicateAction[]>([]);
+    const replicateBlockIdRef = useRef(1);
 
     const plate = PLATE_PRESETS.find((entry) => entry.key === plateKey) ?? PLATE_PRESETS[4];
     const wellIds = useMemo(() => buildWellIds(plate.rows, plate.cols), [plate.rows, plate.cols]);
@@ -332,52 +318,6 @@ export default function PlatePlannerCalculator() {
         [wellIds, wellValues]
     );
 
-    const sourcePatternHint = useMemo(() => {
-        if (filledWellIds.length === 0) {
-            return null;
-        }
-        const replicateCount = parsePositiveInteger(replicates) ?? 1;
-        if (replicateCount <= 1) {
-            return null;
-        }
-
-        const sourceCoords = filledWellIds
-            .map((wellId) => wellIds.indexOf(wellId))
-            .filter((idx) => idx >= 0)
-            .map((idx) => getCoord(idx, plate.cols));
-        if (sourceCoords.length === 0) {
-            return null;
-        }
-        const bounds = getSourceBoundingBox(sourceCoords);
-        const height = bounds.maxRow - bounds.minRow + 1;
-        const width = bounds.maxCol - bounds.minCol + 1;
-
-        const matrix: string[][] = [];
-        for (let row = bounds.minRow; row <= bounds.maxRow; row += 1) {
-            const rowValues: string[] = [];
-            for (let col = bounds.minCol; col <= bounds.maxCol; col += 1) {
-                const idx = toIndex({ row, col }, plate.cols);
-                const wellId = wellIds[idx];
-                rowValues.push((wellValues[wellId] ?? "").trim());
-            }
-            matrix.push(rowValues);
-        }
-
-        if (fillMode === "column" && width > 1) {
-            if (columnsMatchReplicateGroups(matrix, replicateCount)) {
-                return null;
-            }
-            return "Current filled block spans multiple columns. If this came from overflow (for example 9 values in an 8-row plate), switch to row-wise replicate fill.";
-        }
-        if (fillMode === "row" && height > 1) {
-            if (rowsMatchReplicateGroups(matrix, replicateCount)) {
-                return null;
-            }
-            return "Current filled block spans multiple rows. If this came from overflow, switch to column-wise replicate fill.";
-        }
-        return null;
-    }, [fillMode, filledWellIds, plate.cols, replicates, wellIds, wellValues]);
-
     const analysis = useMemo<PlateAnalysis>(() => {
         const errors: string[] = [];
         const warnings: string[] = [];
@@ -385,7 +325,6 @@ export default function PlatePlannerCalculator() {
         const startConcentration = parsePositiveNumber(startValue);
         const stockConcentration = parsePositiveNumber(stockValue);
         const replicateCount = parsePositiveInteger(replicates);
-        const extraCount = parseNonNegativeInteger(extraSamples);
         const overage = Number.parseFloat(overagePercent);
         const perWell = parsePositiveNumber(perWellVolume);
 
@@ -397,9 +336,6 @@ export default function PlatePlannerCalculator() {
         }
         if (!replicateCount) {
             errors.push("Replicates must be an integer greater than zero.");
-        }
-        if (extraCount === null) {
-            errors.push("Extra samples must be an integer of zero or higher.");
         }
         if (!Number.isFinite(overage) || overage < 0) {
             errors.push("Overage must be zero or greater.");
@@ -485,15 +421,13 @@ export default function PlatePlannerCalculator() {
         }
 
         const summaryMap = new Map<string, ConditionSummary>();
-        const safeExtra = extraCount ?? 0;
         const safeOverage = Number.isFinite(overage) && overage >= 0 ? overage : 0;
         const safePerWell = perWell ?? 0;
-        const safeReplicateCount = replicateCount ?? 1;
 
         const computePreparedVolume = (wellCount: number): number => {
             if (wellCount <= 0) return 0;
-            const replicateSets = Math.max(1, Math.ceil(wellCount / safeReplicateCount));
-            return safePerWell * (wellCount + safeExtra * replicateSets) * (1 + safeOverage / 100);
+            const baseTotalVolume = safePerWell * wellCount;
+            return applyOverageToTotal(baseTotalVolume, safeOverage);
         };
 
         for (const entry of entries) {
@@ -561,7 +495,7 @@ export default function PlatePlannerCalculator() {
         });
         for (const violation of monotonicViolations) {
             warnings.push(
-                `${violation.currentWellId}: concentration increases compared with ${violation.previousWellId} in ${fillMode}-wise order toward BLANK (${formatNumber(violation.currentConcentration)} > ${formatNumber(violation.previousConcentration)} ${getUnitLabel(startUnit)}).`
+                `${violation.currentWellId}: concentration increases compared with ${violation.previousWellId} within a detected ${fillMode}-wise series (${formatNumber(violation.currentConcentration)} > ${formatNumber(violation.previousConcentration)} ${getUnitLabel(startUnit)}).`
             );
         }
 
@@ -575,7 +509,6 @@ export default function PlatePlannerCalculator() {
             blankPreparedVolume,
         };
     }, [
-        extraSamples,
         fillMode,
         filledWellIds,
         mode,
@@ -672,7 +605,6 @@ export default function PlatePlannerCalculator() {
 
         const startConcentration = parsePositiveNumber(startValue);
         const perWell = parsePositiveNumber(perWellVolume);
-        const extraCount = parseNonNegativeInteger(extraSamples) ?? 0;
         const parsedOverage = Number.parseFloat(overagePercent);
         const safeOverage = Number.isFinite(parsedOverage) && parsedOverage >= 0 ? parsedOverage : 0;
 
@@ -688,7 +620,7 @@ export default function PlatePlannerCalculator() {
             orderedFactors,
             startConcentration,
             perWellVolume: perWell,
-            extraCount,
+            extraCount: 0,
             overagePercent: safeOverage,
         });
 
@@ -712,7 +644,7 @@ export default function PlatePlannerCalculator() {
                 transferToNext: step.transferToNext,
             };
         });
-    }, [extraSamples, mode, orderedDilutionFactors.ordered, overagePercent, perWellVolume, startUnit, startValue]);
+    }, [mode, orderedDilutionFactors.ordered, overagePercent, perWellVolume, startUnit, startValue]);
 
     const wellShadeStyleById = useMemo(() => {
         const isBlank = (raw: string) => isBlankAlias(raw) || isCanonicalBlank(raw);
@@ -763,6 +695,63 @@ export default function PlatePlannerCalculator() {
             blankStyle: BLANK_SHADE_STYLE,
         });
     }, [analysis.entries, fillMode, mode, plate.cols, startValue, wellIds, wellValues]);
+
+    const laneReplicateSuggestions = useMemo<LaneReplicateSuggestion[]>(() => {
+        const startConcentration = parsePositiveNumber(startValue) ?? 0;
+        return detectLaneReplicateSuggestions({
+            wellIds,
+            wellValues,
+            rows: plate.rows,
+            cols: plate.cols,
+            fillMode,
+            mode,
+            startConcentration,
+            isBlank: (raw) => isBlankAlias(raw) || isCanonicalBlank(raw),
+            parseDilutionFactor,
+            parseConcentration: (raw) => {
+                const parsed = parseConcentrationToken(raw, startUnit);
+                if (!parsed) return null;
+                const inStartUnit = convertUnitValue(parsed.value, parsed.unit, startUnit);
+                return inStartUnit ?? null;
+            },
+            minSeriesLength: 3,
+        });
+    }, [fillMode, mode, plate.cols, plate.rows, startUnit, startValue, wellIds, wellValues]);
+
+    const laneReplicateSuggestionByTarget = useMemo(
+        () => {
+            const map = new Map<number, LaneReplicateSuggestion>();
+            for (const suggestion of laneReplicateSuggestions) {
+                for (const targetLane of suggestion.targetLanes) {
+                    map.set(targetLane, suggestion);
+                }
+            }
+            return map;
+        },
+        [laneReplicateSuggestions]
+    );
+    const laneBlockMetaByIndex = useMemo(() => {
+        const axisBlocks = replicateBlocks
+            .filter((block) => block.axis === fillMode)
+            .slice()
+            .sort((a, b) => a.id - b.id);
+        const map = new Map<number, LaneBlockMeta>();
+        axisBlocks.forEach((block, blockIndex) => {
+            const colorHex = REPLICATE_BLOCK_COLORS[blockIndex % REPLICATE_BLOCK_COLORS.length];
+            const lanes = block.lanes.slice().sort((a, b) => a - b);
+            lanes.forEach((lane, laneIndex) => {
+                map.set(lane, {
+                    blockId: block.id,
+                    blockOrdinal: blockIndex + 1,
+                    laneOrdinal: laneIndex + 1,
+                    colorHex,
+                });
+            });
+        });
+        return map;
+    }, [fillMode, replicateBlocks]);
+    const hasCurrentAxisReplicateBlocks = laneBlockMetaByIndex.size > 0;
+    const lastQuickReplicateAction = quickReplicateHistory[quickReplicateHistory.length - 1] ?? null;
 
     const useSequentialPreparationInstructions =
         mode === "dilution" && sequentialDilutionInstructions.length > 0;
@@ -836,35 +825,296 @@ export default function PlatePlannerCalculator() {
         setPerWellVolumeUnit(nextUnit);
     };
 
+    const writeWellRaw = (next: Record<string, string>, wellId: string, raw: string) => {
+        if (raw.trim() === "") {
+            delete next[wellId];
+            return;
+        }
+        next[wellId] = raw;
+    };
+
+    const applyValueWithReplicatePropagation = (
+        base: Record<string, string>,
+        wellId: string,
+        raw: string
+    ): Record<string, string> => {
+        const next = { ...base };
+        writeWellRaw(next, wellId, raw);
+
+        if (replicateBlocks.length === 0) {
+            return next;
+        }
+
+        const sourceIndex = wellIds.indexOf(wellId);
+        if (sourceIndex < 0) {
+            return next;
+        }
+
+        const sourceCoord = getCoord(sourceIndex, plate.cols);
+
+        for (const block of replicateBlocks) {
+            const sourceLane = block.axis === "column" ? sourceCoord.col : sourceCoord.row;
+            if (!block.lanes.includes(sourceLane)) {
+                continue;
+            }
+
+            const seriesIndex = block.axis === "column" ? sourceCoord.row : sourceCoord.col;
+            for (const lane of block.lanes) {
+                const targetCoord =
+                    block.axis === "column"
+                        ? { row: seriesIndex, col: lane }
+                        : { row: lane, col: seriesIndex };
+                const targetWellId = wellIds[toIndex(targetCoord, plate.cols)];
+                if (!targetWellId) continue;
+                writeWellRaw(next, targetWellId, raw);
+            }
+        }
+
+        return next;
+    };
+
+    const assignReplicateBlock = (blocksInput: ReplicateBlock[], axis: FillMode, sourceLane: number, targetLane: number) => {
+        const relatedBlocks = blocksInput.filter(
+            (block) =>
+                block.axis === axis &&
+                (block.lanes.includes(sourceLane) || block.lanes.includes(targetLane))
+        );
+
+        if (relatedBlocks.length === 0) {
+            const blockId = replicateBlockIdRef.current;
+            replicateBlockIdRef.current += 1;
+            const newBlock: ReplicateBlock = {
+                id: blockId,
+                axis,
+                lanes: Array.from(new Set([sourceLane, targetLane])).sort((a, b) => a - b),
+            };
+            return { blockId, blocks: [...blocksInput, newBlock] };
+        }
+
+        const primaryBlock = relatedBlocks[0];
+        const mergedLanes = Array.from(
+            new Set([
+                sourceLane,
+                targetLane,
+                ...relatedBlocks.flatMap((block) => block.lanes),
+            ])
+        ).sort((a, b) => a - b);
+        const mergedIds = new Set(relatedBlocks.map((block) => block.id));
+        const blocks = blocksInput
+            .filter((block) => !mergedIds.has(block.id))
+            .concat([{ id: primaryBlock.id, axis, lanes: mergedLanes }]);
+
+        return { blockId: primaryBlock.id, blocks };
+    };
+
+    const getWellIdAtAxis = (axis: FillMode, lane: number, seriesIndex: number): string | null => {
+        const coord =
+            axis === "column"
+                ? { row: seriesIndex, col: lane }
+                : { row: lane, col: seriesIndex };
+        const idx = toIndex(coord, plate.cols);
+        return wellIds[idx] ?? null;
+    };
+
+    const getTraversalWellIds = (axis: FillMode): string[] => {
+        if (axis === "column") {
+            const laneIndices = fillDirection === "left"
+                ? Array.from({ length: plate.cols }, (_, idx) => plate.cols - 1 - idx)
+                : Array.from({ length: plate.cols }, (_, idx) => idx);
+            return laneIndices.flatMap((lane) =>
+                Array.from({ length: plate.rows }, (_, seriesIndex) =>
+                    getWellIdAtAxis(axis, lane, seriesIndex)
+                ).filter((wellId): wellId is string => Boolean(wellId))
+            );
+        }
+
+        const laneIndices = fillDirection === "up"
+            ? Array.from({ length: plate.rows }, (_, idx) => plate.rows - 1 - idx)
+            : Array.from({ length: plate.rows }, (_, idx) => idx);
+        return laneIndices.flatMap((lane) =>
+            Array.from({ length: plate.cols }, (_, seriesIndex) =>
+                getWellIdAtAxis(axis, lane, seriesIndex)
+            ).filter((wellId): wellId is string => Boolean(wellId))
+        );
+    };
+
+    const tryExpandReplicateBlocksTo = (targetCount: number): number => {
+        if (targetCount <= 1) {
+            return getReplicateCountForAxis(replicateBlocks, fillMode);
+        }
+
+        const axisBlocks = replicateBlocks
+            .filter((block) => block.axis === fillMode)
+            .sort((a, b) => a.id - b.id);
+        if (axisBlocks.length === 0) {
+            push("Create the first duplicate with + before increasing replicates.", "info");
+            return getReplicateCountForAxis(replicateBlocks, fillMode);
+        }
+
+        const laneLimit = fillMode === "column" ? plate.cols : plate.rows;
+        const seriesLength = fillMode === "column" ? plate.rows : plate.cols;
+        const preferNegativeDirection =
+            (fillMode === "column" && fillDirection === "left") ||
+            (fillMode === "row" && fillDirection === "up");
+
+        const nextValues = { ...wellValues };
+        const nextBlocks = replicateBlocks.map((block) => ({ ...block, lanes: [...block.lanes] }));
+        const nextHistory = [...quickReplicateHistory];
+        let totalAdded = 0;
+        let blockedAdds = 0;
+
+        for (const axisBlock of axisBlocks) {
+            const block = nextBlocks.find((candidate) => candidate.id === axisBlock.id);
+            if (!block) continue;
+
+            while (block.lanes.length < targetCount) {
+                const sortedLanes = block.lanes.slice().sort((a, b) => a - b);
+                const minLane = sortedLanes[0];
+                const maxLane = sortedLanes[sortedLanes.length - 1];
+                const preferredCandidates = preferNegativeDirection
+                    ? Array.from({ length: minLane }, (_, idx) => minLane - 1 - idx)
+                    : Array.from({ length: laneLimit - maxLane - 1 }, (_, idx) => maxLane + 1 + idx);
+                const fallbackCandidates = preferNegativeDirection
+                    ? Array.from({ length: laneLimit - maxLane - 1 }, (_, idx) => maxLane + 1 + idx)
+                    : Array.from({ length: minLane }, (_, idx) => minLane - 1 - idx);
+                const laneCandidates = [...preferredCandidates, ...fallbackCandidates];
+
+                const reservedLanes = new Set(
+                    nextBlocks
+                        .filter((candidate) => candidate.axis === fillMode && candidate.id !== block.id)
+                        .flatMap((candidate) => candidate.lanes)
+                );
+                const templateLane = sortedLanes[0];
+                let expanded = false;
+
+                for (const targetLane of laneCandidates) {
+                    if (targetLane < 0 || targetLane >= laneLimit) continue;
+                    if (block.lanes.includes(targetLane) || reservedLanes.has(targetLane)) {
+                        continue;
+                    }
+
+                    const writes: QuickReplicateAction["writes"] = [];
+                    let hasConflict = false;
+                    for (let seriesIndex = 0; seriesIndex < seriesLength; seriesIndex += 1) {
+                        const sourceWellId = getWellIdAtAxis(fillMode, templateLane, seriesIndex);
+                        const targetWellId = getWellIdAtAxis(fillMode, targetLane, seriesIndex);
+                        if (!sourceWellId || !targetWellId) continue;
+
+                        const sourceRaw = (nextValues[sourceWellId] ?? "").trim();
+                        if (sourceRaw === "") continue;
+
+                        const existing = (nextValues[targetWellId] ?? "").trim();
+                        if (existing !== "" && existing !== sourceRaw) {
+                            hasConflict = true;
+                            break;
+                        }
+
+                        writes.push({
+                            wellId: targetWellId,
+                            previousRaw: existing,
+                            nextRaw: sourceRaw,
+                        });
+                    }
+
+                    if (hasConflict || writes.length === 0) {
+                        continue;
+                    }
+
+                    for (const write of writes) {
+                        nextValues[write.wellId] = write.nextRaw;
+                    }
+                    block.lanes = Array.from(new Set([...block.lanes, targetLane])).sort((a, b) => a - b);
+                    nextHistory.push({
+                        axis: fillMode,
+                        targetLanes: [targetLane],
+                        blockTargets: [{ blockId: block.id, sourceLane: templateLane, targetLane }],
+                        writes,
+                    });
+                    totalAdded += 1;
+                    expanded = true;
+                    break;
+                }
+
+                if (!expanded) {
+                    blockedAdds += 1;
+                    break;
+                }
+            }
+        }
+
+        if (totalAdded === 0) {
+            push("Could not expand replicate blocks to that count with current plate occupancy.", "info");
+            return getReplicateCountForAxis(replicateBlocks, fillMode);
+        }
+
+        setWellValues(nextValues);
+        setReplicateBlocks(nextBlocks);
+        setQuickReplicateHistory(nextHistory);
+        setHoveredReplicateLane(null);
+
+        if (blockedAdds > 0) {
+            push(`Replicates increased where possible. ${blockedAdds} block(s) reached plate/occupancy limits.`, "info");
+        } else {
+            push(`Replicates increased by ${totalAdded} lane(s).`, "success");
+        }
+
+        return getReplicateCountForAxis(nextBlocks, fillMode);
+    };
+
+    const handleReplicatesChange = (raw: string) => {
+        setReplicates(raw);
+        const target = parsePositiveInteger(raw);
+        if (!target) {
+            return;
+        }
+
+        const current = getReplicateCountForAxis(replicateBlocks, fillMode);
+        if (target === current) {
+            return;
+        }
+        if (target < current) {
+            push("To reduce replicate lanes, use the - button on the most recently duplicated lane.", "info");
+            setReplicates(String(current));
+            return;
+        }
+
+        const synced = tryExpandReplicateBlocksTo(target);
+        setReplicates(String(synced));
+    };
+
+    const handleWellInputChange = (wellId: string, raw: string) => {
+        setWellValues((prev) => applyValueWithReplicatePropagation(prev, wellId, raw));
+    };
+
     const handleWellBlur = (wellId: string) => {
         const raw = (wellValues[wellId] ?? "").trim();
         if (!raw) {
-            setWellValues((prev) => ({ ...prev, [wellId]: "" }));
+            setWellValues((prev) => applyValueWithReplicatePropagation(prev, wellId, ""));
             return;
         }
 
         if (isBlankAlias(raw) || isCanonicalBlank(raw)) {
-            setWellValues((prev) => ({ ...prev, [wellId]: BLANK_TOKEN }));
+            setWellValues((prev) => applyValueWithReplicatePropagation(prev, wellId, BLANK_TOKEN));
             return;
         }
 
         if (mode === "dilution") {
             const factor = parseDilutionFactor(raw);
             if (factor !== null) {
-                setWellValues((prev) => ({ ...prev, [wellId]: ratioLabel(factor) }));
+                setWellValues((prev) => applyValueWithReplicatePropagation(prev, wellId, ratioLabel(factor)));
                 return;
             }
-            setWellValues((prev) => ({ ...prev, [wellId]: raw }));
+            setWellValues((prev) => applyValueWithReplicatePropagation(prev, wellId, raw));
             return;
         }
 
         const parsed = parseConcentrationToken(raw, startUnit);
         if (parsed !== null) {
             const normalized = `${formatNumber(parsed.value)} ${getUnitLabel(parsed.unit)}`;
-            setWellValues((prev) => ({ ...prev, [wellId]: normalized }));
+            setWellValues((prev) => applyValueWithReplicatePropagation(prev, wellId, normalized));
             return;
         }
-        setWellValues((prev) => ({ ...prev, [wellId]: raw }));
+        setWellValues((prev) => applyValueWithReplicatePropagation(prev, wellId, raw));
     };
 
     const handleClearPlate = () => {
@@ -873,80 +1123,20 @@ export default function PlatePlannerCalculator() {
             delete next[wellId];
         }
         setWellValues(next);
-        setFillFeedback(null);
+        setReplicateBlocks([]);
+        setQuickReplicateHistory([]);
+        setReplicates("1");
     };
 
-    const handleFillReplicates = () => {
-        setFillFeedback(null);
-        const replicateCount = parsePositiveInteger(replicates) ?? 1;
-        if (replicateCount <= 1) {
-            push("Set replicates to 2 or more to use Fill Replicates.", "info");
-            return;
-        }
-        if (filledWellIds.length === 0) {
-            push("Add at least one well value before filling replicates.", "info");
+    const handleQuickReplicateSuggestion = (suggestion: LaneReplicateSuggestion) => {
+        if (suggestion.writes.length === 0) {
+            push("No series to replicate.", "info");
             return;
         }
 
-        const sourceIndices = filledWellIds
-            .map((wellId) => wellIds.indexOf(wellId))
-            .filter((idx) => idx >= 0);
-        const sourceCoords = sourceIndices.map((idx) => getCoord(idx, plate.cols));
-        const bounds = getSourceBoundingBox(sourceCoords);
-        const blockHeight = bounds.maxRow - bounds.minRow + 1;
-        const blockWidth = bounds.maxCol - bounds.minCol + 1;
-
-        let deltaRow = 0;
-        let deltaCol = 0;
-        if (fillMode === "column") {
-            deltaCol = fillDirection === "left" ? -blockWidth : blockWidth;
-        } else {
-            deltaRow = fillDirection === "up" ? -blockHeight : blockHeight;
-        }
-
-        const sourceByIndex = new Map<number, string>();
-        for (const idx of sourceIndices) {
-            const id = wellIds[idx];
-            const raw = (wellValues[id] ?? "").trim();
-            if (raw !== "") {
-                sourceByIndex.set(idx, raw);
-            }
-        }
-
-        const plannedWrites: Array<{ targetIndex: number; value: string }> = [];
-        let overflow = false;
-        for (let copy = 1; copy < replicateCount; copy += 1) {
-            for (const [sourceIndex, value] of sourceByIndex.entries()) {
-                const coord = getCoord(sourceIndex, plate.cols);
-                const target: Coord = {
-                    row: coord.row + deltaRow * copy,
-                    col: coord.col + deltaCol * copy,
-                };
-                if (target.row < 0 || target.row >= plate.rows || target.col < 0 || target.col >= plate.cols) {
-                    overflow = true;
-                    continue;
-                }
-                plannedWrites.push({
-                    targetIndex: toIndex(target, plate.cols),
-                    value,
-                });
-            }
-        }
-
-        if (overflow) {
-            const suggestion =
-                fillMode === "column"
-                    ? "Replicate fill overflows the plate in column-wise mode. Try row-wise fill."
-                    : "Replicate fill overflows the plate in row-wise mode. Try column-wise fill.";
-            setFillFeedback(suggestion);
-            push("Replicate fill overflow detected.", "error");
-            return;
-        }
-
-        const conflicts = plannedWrites.filter(({ targetIndex, value }) => {
-            const targetWell = wellIds[targetIndex];
-            const existing = (wellValues[targetWell] ?? "").trim();
-            return existing !== "" && existing !== value;
+        const conflicts = suggestion.writes.filter((write) => {
+            const existing = (wellValues[write.targetWellId] ?? "").trim();
+            return existing !== "" && existing !== write.raw;
         });
 
         const shouldOverwrite =
@@ -957,31 +1147,207 @@ export default function PlatePlannerCalculator() {
                 : true;
 
         const nextValues = { ...wellValues };
+        const appliedWrites: QuickReplicateAction["writes"] = [];
         let applied = 0;
         let skipped = 0;
-        for (const write of plannedWrites) {
-            const targetWell = wellIds[write.targetIndex];
-            const existing = (nextValues[targetWell] ?? "").trim();
-            if (existing !== "" && existing !== write.value && !shouldOverwrite) {
+        for (const write of suggestion.writes) {
+            const existing = (nextValues[write.targetWellId] ?? "").trim();
+            if (existing !== "" && existing !== write.raw && !shouldOverwrite) {
                 skipped += 1;
                 continue;
             }
-            nextValues[targetWell] = write.value;
+            appliedWrites.push({
+                wellId: write.targetWellId,
+                previousRaw: existing,
+                nextRaw: write.raw,
+            });
+            nextValues[write.targetWellId] = write.raw;
             applied += 1;
         }
 
+        if (applied === 0) {
+            push("No wells were replicated.", "info");
+            return;
+        }
+
+        let nextBlocks = replicateBlocks;
+        const blockTargets: QuickReplicateAction["blockTargets"] = [];
+        for (const pair of suggestion.lanePairs) {
+            const blockAssignment = assignReplicateBlock(
+                nextBlocks,
+                suggestion.axis,
+                pair.sourceLane,
+                pair.targetLane
+            );
+            nextBlocks = blockAssignment.blocks;
+            blockTargets.push({
+                blockId: blockAssignment.blockId,
+                sourceLane: pair.sourceLane,
+                targetLane: pair.targetLane,
+            });
+        }
+
         setWellValues(nextValues);
-        setFillFeedback(null);
+        setReplicateBlocks(nextBlocks);
+        setReplicates(String(getReplicateCountForAxis(nextBlocks, suggestion.axis)));
+        setQuickReplicateHistory((prev) => [
+            ...prev,
+            {
+                axis: suggestion.axis,
+                targetLanes: suggestion.targetLanes,
+                blockTargets,
+                writes: appliedWrites,
+            },
+        ]);
+        setHoveredReplicateLane(null);
         push(
             skipped > 0
-                ? `Replicates filled: ${applied} wells updated, ${skipped} skipped.`
-                : `Replicates filled: ${applied} wells updated.`,
+                ? `Quick replicate applied: ${applied} wells updated, ${skipped} skipped.`
+                : `Quick replicate applied: ${applied} wells updated.`,
             "success"
         );
     };
 
-    const safeReplicates = parsePositiveInteger(replicates) ?? 1;
-    const canFillReplicates = safeReplicates > 1 && filledWellIds.length > 0;
+    const handlePackReplicateSuggestion = (suggestion: LaneReplicateSuggestion) => {
+        if (suggestion.sourceSequence.length === 0) {
+            push("No series found to pack-replicate.", "info");
+            return;
+        }
+
+        const traversalWellIds = getTraversalWellIds(suggestion.axis);
+        const seriesEndWellId = suggestion.sourceSequence[suggestion.sourceSequence.length - 1]?.sourceWellId;
+        const seriesEndPosition = traversalWellIds.indexOf(seriesEndWellId);
+        if (seriesEndPosition < 0) {
+            push("Could not determine the end of the source series.", "error");
+            return;
+        }
+
+        const targetWellIds = traversalWellIds.slice(
+            seriesEndPosition + 1,
+            seriesEndPosition + 1 + suggestion.sourceSequence.length
+        );
+        if (targetWellIds.length < suggestion.sourceSequence.length) {
+            push("Not enough free plate positions after the series end for a packed replicate.", "info");
+            return;
+        }
+
+        const writes = suggestion.sourceSequence.map((source, index) => ({
+            sourceWellId: source.sourceWellId,
+            targetWellId: targetWellIds[index],
+            raw: source.raw,
+        }));
+
+        const conflicts = writes.filter((write) => {
+            const existing = (wellValues[write.targetWellId] ?? "").trim();
+            return existing !== "" && existing !== write.raw;
+        });
+
+        if (
+            conflicts.length > 0 &&
+            !window.confirm(
+                `${conflicts.length} destination wells already have values.\n\nOK = overwrite existing values\nCancel = abort packed replicate`
+            )
+        ) {
+            push("Packed replicate cancelled.", "info");
+            return;
+        }
+
+        const nextValues = { ...wellValues };
+        const appliedWrites: QuickReplicateAction["writes"] = [];
+        for (const write of writes) {
+            const existing = (nextValues[write.targetWellId] ?? "").trim();
+            appliedWrites.push({
+                wellId: write.targetWellId,
+                previousRaw: existing,
+                nextRaw: write.raw,
+            });
+            nextValues[write.targetWellId] = write.raw;
+        }
+
+        const targetLanes = Array.from(
+            new Set(
+                targetWellIds
+                    .map((wellId) => wellIds.indexOf(wellId))
+                    .filter((index) => index >= 0)
+                    .map((index) => {
+                        const coord = getCoord(index, plate.cols);
+                        return suggestion.axis === "column" ? coord.col : coord.row;
+                    })
+            )
+        ).sort((a, b) => a - b);
+
+        setWellValues(nextValues);
+        setQuickReplicateHistory((prev) => [
+            ...prev,
+            {
+                axis: suggestion.axis,
+                targetLanes,
+                blockTargets: [],
+                writes: appliedWrites,
+            },
+        ]);
+        setHoveredReplicateLane(null);
+        push(`Packed replicate applied: ${writes.length} wells updated.`, "success");
+    };
+
+    const handleRemoveLastQuickReplicate = () => {
+        const lastAction = quickReplicateHistory[quickReplicateHistory.length - 1];
+        if (!lastAction) {
+            push("No quick replicate lane to remove.", "info");
+            return;
+        }
+
+        const nextValues = { ...wellValues };
+        let reverted = 0;
+        let skipped = 0;
+        for (const write of lastAction.writes) {
+            const existing = (nextValues[write.wellId] ?? "").trim();
+            if (existing !== write.nextRaw.trim()) {
+                skipped += 1;
+                continue;
+            }
+
+            if (write.previousRaw === "") {
+                delete nextValues[write.wellId];
+            } else {
+                nextValues[write.wellId] = write.previousRaw;
+            }
+            reverted += 1;
+        }
+
+        let nextBlocks = replicateBlocks.map((block) => ({ ...block, lanes: [...block.lanes] }));
+        for (const target of lastAction.blockTargets) {
+            nextBlocks = nextBlocks.flatMap((block) => {
+                if (block.id !== target.blockId) {
+                    return [block];
+                }
+                const remaining = block.lanes.filter((lane) => lane !== target.targetLane);
+                if (remaining.length < 2) {
+                    return [];
+                }
+                return [{ ...block, lanes: remaining }];
+            });
+        }
+
+        setReplicateBlocks(nextBlocks);
+        setReplicates(String(getReplicateCountForAxis(nextBlocks, fillMode)));
+        setQuickReplicateHistory((prev) => prev.slice(0, -1));
+        setHoveredReplicateLane(null);
+
+        if (reverted === 0) {
+            push("Last quick replicate could not be removed because those wells were edited.", "info");
+            return;
+        }
+
+        setWellValues(nextValues);
+        push(
+            skipped > 0
+                ? `Removed last quick replicate: ${reverted} wells reverted, ${skipped} skipped.`
+                : `Removed last quick replicate: ${reverted} wells reverted.`,
+            "success"
+        );
+    };
+
     const perWellDispense = parsePositiveNumber(perWellVolume) ?? 0;
     const hasConditionSummaryRows = useSequentialConditionSummary
         ? sequentialDilutionInstructions.length > 0
@@ -995,7 +1361,7 @@ export default function PlatePlannerCalculator() {
                     Plate Planner
                 </h2>
                 <p className="text-xs text-zinc-500">
-                    Edit any well directly, switch between dilution/concentration input, then auto-fill replicate blocks.
+                    Edit wells directly, build duplicate replicate blocks with +, and keep replicate lanes synced.
                 </p>
             </div>
 
@@ -1065,7 +1431,7 @@ export default function PlatePlannerCalculator() {
                     />
                 </div>
 
-                <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+                <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
                     <div className="space-y-1">
                         <label className="text-xs font-bold text-zinc-500 uppercase">Replicates</label>
                         <input
@@ -1073,18 +1439,7 @@ export default function PlatePlannerCalculator() {
                             min={1}
                             step={1}
                             value={replicates}
-                            onChange={(e) => setReplicates(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Extra Samples</label>
-                        <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={extraSamples}
-                            onChange={(e) => setExtraSamples(e.target.value)}
+                            onChange={(e) => handleReplicatesChange(e.target.value)}
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40"
                         />
                     </div>
@@ -1096,10 +1451,14 @@ export default function PlatePlannerCalculator() {
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40"
                         >
                             <option value="0" className="bg-zinc-900">0%</option>
+                            <option value="2" className="bg-zinc-900">2%</option>
+                            <option value="5" className="bg-zinc-900">5%</option>
                             <option value="10" className="bg-zinc-900">10%</option>
-                            <option value="15" className="bg-zinc-900">15%</option>
                             <option value="20" className="bg-zinc-900">20%</option>
                         </select>
+                        <p className="text-[10px] text-zinc-500 mt-1">
+                            Applied to the total prepared volume per condition.
+                        </p>
                     </div>
                 </div>
 
@@ -1112,6 +1471,7 @@ export default function PlatePlannerCalculator() {
                                 const next = e.target.value as FillMode;
                                 setFillMode(next);
                                 setFillDirection(next === "column" ? "right" : "down");
+                                setReplicates(String(getReplicateCountForAxis(replicateBlocks, next)));
                             }}
                             className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
                         >
@@ -1141,16 +1501,6 @@ export default function PlatePlannerCalculator() {
                         </select>
                     </div>
 
-                    {canFillReplicates && (
-                        <button
-                            onClick={handleFillReplicates}
-                            className="secondary px-3 py-2 text-xs flex items-center gap-2"
-                        >
-                            <WandSparkles className="h-3.5 w-3.5" />
-                            Fill Replicates
-                        </button>
-                    )}
-
                     <button
                         onClick={handleClearPlate}
                         className="secondary px-3 py-2 text-xs"
@@ -1158,20 +1508,6 @@ export default function PlatePlannerCalculator() {
                         Clear Plate
                     </button>
                 </div>
-
-                {sourcePatternHint && (
-                    <div className="flex items-start gap-2 text-sm text-amber-300 bg-amber-400/10 border border-amber-400/20 p-3 rounded-lg">
-                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        <p>{sourcePatternHint}</p>
-                    </div>
-                )}
-
-                {fillFeedback && (
-                    <div className="flex items-start gap-2 text-sm text-amber-300 bg-amber-400/10 border border-amber-400/20 p-3 rounded-lg">
-                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        <p>{fillFeedback}</p>
-                    </div>
-                )}
             </section>
 
             {(analysis.errors.length > 0 || analysis.warnings.length > 0) && (
@@ -1214,25 +1550,103 @@ export default function PlatePlannerCalculator() {
                     <div
                         className="grid gap-1.5 min-w-max"
                         style={{ gridTemplateColumns: `repeat(${plate.cols}, minmax(72px, 1fr))` }}
+                        onMouseLeave={() => setHoveredReplicateLane(null)}
                     >
-                        {wellIds.map((wellId) => {
+                        {wellIds.map((wellId, index) => {
                             const rawValue = wellValues[wellId] ?? "";
                             const blankDisplay = isCanonicalBlank(rawValue);
                             const inputWidthCh = getWellInputWidthCh(rawValue);
                             const cellStyle = wellShadeStyleById.get(wellId);
+                            const coord = getCoord(index, plate.cols);
+                            const laneIndex = fillMode === "column" ? coord.col : coord.row;
+                            const laneSuggestion = laneReplicateSuggestionByTarget.get(laneIndex);
+                            const laneBlockMeta = laneBlockMetaByIndex.get(laneIndex);
+                            const isLaneAnchor = fillMode === "column" ? coord.row === 0 : coord.col === 0;
+                            const isLastReplicatedLane = Boolean(
+                                lastQuickReplicateAction &&
+                                lastQuickReplicateAction.axis === fillMode &&
+                                lastQuickReplicateAction.targetLanes.includes(laneIndex)
+                            );
+                            const showQuickReplicate = Boolean(
+                                laneSuggestion &&
+                                hoveredReplicateLane === laneIndex &&
+                                isLaneAnchor
+                            );
+                            const showQuickPack = showQuickReplicate;
+                            const showQuickRemove = Boolean(
+                                isLastReplicatedLane &&
+                                hoveredReplicateLane === laneIndex &&
+                                isLaneAnchor
+                            );
+                            const decoratedCellStyle = laneBlockMeta
+                                ? {
+                                    ...cellStyle,
+                                    boxShadow: `inset 0 0 0 1px ${hexToRgba(laneBlockMeta.colorHex, 0.48)}, inset 0 0 14px ${hexToRgba(laneBlockMeta.colorHex, 0.14)}`,
+                                }
+                                : cellStyle;
 
                             return (
                                 <div
                                     key={wellId}
-                                    className="rounded-lg border border-white/10 bg-white/[0.02] p-1.5 space-y-1 transition-colors duration-200"
-                                    style={cellStyle}
+                                    className="relative rounded-lg border border-white/10 bg-white/[0.02] p-1.5 space-y-1 transition-colors duration-200"
+                                    style={decoratedCellStyle}
+                                    onMouseEnter={() => setHoveredReplicateLane(laneIndex)}
                                 >
+                                    {showQuickRemove && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRemoveLastQuickReplicate();
+                                            }}
+                                            className="absolute -top-2 -left-2 h-5 w-5 rounded-full bg-rose-500 text-white border border-rose-300/70 shadow-md shadow-rose-500/25 flex items-center justify-center hover:bg-rose-400"
+                                            title={`Remove the last quick-replicated ${fillMode === "column" ? "column" : "row"}.`}
+                                        >
+                                            <Minus className="h-3 w-3" />
+                                        </button>
+                                    )}
+                                    {showQuickReplicate && laneSuggestion && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleQuickReplicateSuggestion(laneSuggestion);
+                                            }}
+                                            className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-emerald-500 text-white border border-emerald-300/70 shadow-md shadow-emerald-500/25 flex items-center justify-center hover:bg-emerald-400"
+                                            title={`Replicate detected series into this ${fillMode === "column" ? "column" : "row"}.`}
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                        </button>
+                                    )}
+                                    {showQuickPack && laneSuggestion && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handlePackReplicateSuggestion(laneSuggestion);
+                                            }}
+                                            className="absolute -top-2 left-1/2 -translate-x-1/2 h-5 min-w-5 px-1 rounded-full bg-amber-500 text-white border border-amber-300/70 shadow-md shadow-amber-500/25 flex items-center justify-center hover:bg-amber-400 text-[9px] font-bold"
+                                            title={`Pack Replicate: continue this series immediately after its end.`}
+                                        >
+                                            P
+                                        </button>
+                                    )}
                                     <div className="text-[10px] text-zinc-500 font-mono">{wellId}</div>
+                                    {isLaneAnchor && laneBlockMeta && (
+                                        <div
+                                            className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide font-semibold border"
+                                            style={{
+                                                color: hexToRgba(laneBlockMeta.colorHex, 1),
+                                                backgroundColor: hexToRgba(laneBlockMeta.colorHex, 0.14),
+                                                borderColor: hexToRgba(laneBlockMeta.colorHex, 0.5),
+                                            }}
+                                        >
+                                            B{laneBlockMeta.blockOrdinal} · R{laneBlockMeta.laneOrdinal}
+                                        </div>
+                                    )}
                                     <input
                                         value={rawValue}
-                                        onChange={(e) =>
-                                            setWellValues((prev) => ({ ...prev, [wellId]: e.target.value }))
-                                        }
+                                        onChange={(e) => handleWellInputChange(wellId, e.target.value)}
                                         onBlur={() => handleWellBlur(wellId)}
                                         placeholder={mode === "dilution" ? "1:2" : `10 ${getUnitLabel(startUnit)}`}
                                         className={`max-w-full bg-transparent border border-white/10 rounded px-1.5 py-1 text-[11px] outline-none focus:border-indigo-500/40 font-mono placeholder:text-zinc-700 placeholder:opacity-25 ${
@@ -1250,6 +1664,21 @@ export default function PlatePlannerCalculator() {
                         ? "Dilution wells accept 1:2, x2, or 2. Values <= 1 are flagged."
                         : 'Concentration wells accept values with units (for example 1M, 20 uM, 10 mM, 1 mg/mL). Bare numbers default to start unit. "0", "b", or "blank" are treated as BLANK.'}
                 </p>
+                {laneReplicateSuggestions.length > 0 && (
+                    <p className="text-[11px] text-zinc-500">
+                        Hover an adjacent empty {fillMode === "column" ? "column" : "row"} to quick-replicate a detected monotonic series. Use P (Pack Replicate) to continue the copy immediately after the current series end.
+                    </p>
+                )}
+                {hasCurrentAxisReplicateBlocks && (
+                    <p className="text-[11px] text-zinc-500">
+                        Replicate blocks are highlighted and labeled (B# · R#). Editing any lane in a block auto-updates the matching well in sibling replicates.
+                    </p>
+                )}
+                {lastQuickReplicateAction && lastQuickReplicateAction.axis === fillMode && (
+                    <p className="text-[11px] text-zinc-500">
+                        Hover the most recently quick-replicated {fillMode === "column" ? "column" : "row"} and click - to remove it.
+                    </p>
+                )}
                 {showShadingLegend && (
                     <div className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-wider">
                         <span>Low</span>
