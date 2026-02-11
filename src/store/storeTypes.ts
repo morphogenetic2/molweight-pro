@@ -6,6 +6,7 @@ export type ActiveTab =
     | "mw"
     | "dilution"
     | "serial_dilution"
+    | "plate_planner"
     | "buffer_calc"
     | "buffer_recipe"
     | "molarity"
