@@ -9,6 +9,7 @@ interface Molecule2DProps {
     smiles: string;
     width?: number;
     height?: number;
+    forceExplicitHydrogens?: boolean;
 }
 
 /**
@@ -22,11 +23,14 @@ interface Molecule2DProps {
 export default function Molecule2D({ 
     smiles, 
     width = 400, 
-    height = 400
+    height = 400,
+    forceExplicitHydrogens = false,
 }: Molecule2DProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
     const panStartRef = useRef<{ startX: number; startY: number } | null>(null);
+    const zoomRef = useRef(1);
+    const panOffsetRef = useRef({ x: 0, y: 0 });
     const { moleculeSettings, theme } = useStore();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -44,6 +48,14 @@ export default function Molecule2D({
     const maxZoom = 4;
 
     useEffect(() => {
+        zoomRef.current = zoom;
+    }, [zoom]);
+
+    useEffect(() => {
+        panOffsetRef.current = panOffset;
+    }, [panOffset]);
+
+    useEffect(() => {
         if (!isPanning) {
             return;
         }
@@ -56,10 +68,12 @@ export default function Molecule2D({
                 return;
             }
 
-            setPanOffset({
+            const nextPan = {
                 x: event.clientX - panStartRef.current.startX,
                 y: event.clientY - panStartRef.current.startY,
-            });
+            };
+            panOffsetRef.current = nextPan;
+            setPanOffset(nextPan);
         };
 
         const handleMouseUp = (event: MouseEvent) => {
@@ -88,23 +102,29 @@ export default function Molecule2D({
         const cursorX = event.clientX - rect.left;
         const cursorY = event.clientY - rect.top;
         const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+        const prevZoom = zoomRef.current;
+        const prevPan = panOffsetRef.current;
+        const nextZoom = Math.min(maxZoom, Math.max(minZoom, prevZoom * zoomFactor));
+        if (nextZoom === prevZoom) {
+            return;
+        }
 
-        setZoom((prevZoom) => {
-            const nextZoom = Math.min(maxZoom, Math.max(minZoom, prevZoom * zoomFactor));
-            if (nextZoom === prevZoom) {
-                return prevZoom;
-            }
+        // The canvas is centered by flex layout before transforms.
+        const baseOffsetX = (rect.width - renderWidth) / 2;
+        const baseOffsetY = (rect.height - renderHeight) / 2;
 
-            // Keep the point under the cursor stable while zooming.
-            const worldX = (cursorX - panOffset.x) / prevZoom;
-            const worldY = (cursorY - panOffset.y) / prevZoom;
-            setPanOffset({
-                x: cursorX - worldX * nextZoom,
-                y: cursorY - worldY * nextZoom,
-            });
+        // Keep the point under the cursor stable while zooming.
+        const worldX = (cursorX - baseOffsetX - prevPan.x) / prevZoom;
+        const worldY = (cursorY - baseOffsetY - prevPan.y) / prevZoom;
+        const nextPan = {
+            x: cursorX - baseOffsetX - worldX * nextZoom,
+            y: cursorY - baseOffsetY - worldY * nextZoom,
+        };
 
-            return nextZoom;
-        });
+        zoomRef.current = nextZoom;
+        panOffsetRef.current = nextPan;
+        setZoom(nextZoom);
+        setPanOffset(nextPan);
     };
 
     const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -113,9 +133,10 @@ export default function Molecule2D({
         }
 
         event.preventDefault();
+        const pan = panOffsetRef.current;
         panStartRef.current = {
-            startX: event.clientX - panOffset.x,
-            startY: event.clientY - panOffset.y,
+            startX: event.clientX - pan.x,
+            startY: event.clientY - pan.y,
         };
         setIsPanning(true);
     };
@@ -146,7 +167,7 @@ export default function Molecule2D({
                     atomVisualization,
                     isomeric: false,
                     terminalCarbons: moleculeSettings.terminalCarbons,
-                    explicitHydrogens: moleculeSettings.explicitHydrogens,
+                    explicitHydrogens: moleculeSettings.explicitHydrogens || forceExplicitHydrogens,
                     overlapSensitivity: moleculeSettings.overlapSensitivity,
                     overlapResolutionIterations: 2,
                     compactDrawing: false,
@@ -242,7 +263,7 @@ export default function Molecule2D({
                     <div
                         style={{
                             transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                            transformOrigin: "center center",
+                            transformOrigin: "top left",
                         }}
                     >
                         <canvas 

@@ -36,6 +36,54 @@ type SynonymsResponse = {
     };
 };
 
+function buildFormulaLookupCandidates(formula: string): string[] {
+    const candidates = new Set<string>();
+    const trimmed = formula.trim();
+    if (!trimmed) return [];
+
+    const addCandidate = (value: string) => {
+        const normalized = value.trim();
+        if (normalized) {
+            candidates.add(normalized);
+        }
+    };
+
+    // PubChem name endpoint is hydrate-friendly with dots.
+    const parserNormalized = normalizeFormula(trimmed, false); // uses "|" as internal separator
+    addCandidate(parserNormalized.replace(/\|/g, ".")); // e.g., CuSO4.5H2O
+    addCandidate(trimmed);
+
+    // Common hydrate separators in user input
+    addCandidate(trimmed.replace(/\s*[·*•]\s*/g, "."));
+
+    try {
+        const comp = parseFormula(trimmed);
+        addCandidate(generateHillFormula(comp));
+    } catch {
+        // ignore parse errors and keep best-effort candidate set
+    }
+
+    return Array.from(candidates);
+}
+
+async function fetchFirstCidByFormulaQuery(searchFormula: string): Promise<number | null> {
+    const searchRes = await fetch(
+        `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/formula/${encodeURIComponent(searchFormula)}/cids/JSON`
+    );
+    if (!searchRes.ok) return null;
+    const searchData = (await searchRes.json()) as CidSearchResponse;
+    return searchData.IdentifierList?.CID?.[0] ?? null;
+}
+
+async function fetchFirstCidByNameQuery(query: string): Promise<number | null> {
+    const searchRes = await fetch(
+        `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(query)}/cids/JSON`
+    );
+    if (!searchRes.ok) return null;
+    const searchData = (await searchRes.json()) as CidSearchResponse;
+    return searchData.IdentifierList?.CID?.[0] ?? null;
+}
+
 /**
  * Fetches molecular properties for a given CID.
  * 
@@ -77,38 +125,34 @@ async function fetchProperties(cid: number): Promise<PubChemPropertyResult | nul
  */
 export async function lookupPubChemByFormula(formula: string): Promise<{cid: number, smiles?: string} | null> {
     try {
-        // 1. Canonicalize to Hill System for CID search
-        let searchFormula = formula;
-        try {
-            const comp = parseFormula(formula);
-            searchFormula = generateHillFormula(comp);
-        } catch {
-            // Fall back to original formula if parsing fails
-        }
-        
-        if (!searchFormula) return null;
+        const candidates = buildFormulaLookupCandidates(formula);
+        if (candidates.length === 0) return null;
 
-        // 2. Search for CID by molecular formula using PUG REST
-        const searchRes = await fetch(
-            `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/formula/${encodeURIComponent(searchFormula)}/cids/JSON`
-        );
+        // 1) Try formula endpoint for all normalized candidates.
+        for (const candidate of candidates) {
+            const cid = await fetchFirstCidByFormulaQuery(candidate);
+            if (!cid) continue;
 
-        if (!searchRes.ok) return null;
-        const searchData = (await searchRes.json()) as CidSearchResponse;
-
-        if (!searchData.IdentifierList?.CID || searchData.IdentifierList.CID.length === 0) {
-            return null;
+            const prop = await fetchProperties(cid);
+            return {
+                cid,
+                smiles: prop?.smiles || undefined
+            };
         }
 
-        const cid = searchData.IdentifierList.CID[0];
-        
-        // 3. Fetch properties (including SMILES) for this CID
-        const prop = await fetchProperties(cid);
-        
-        return {
-            cid,
-            smiles: prop?.smiles || undefined
-        };
+        // 2) Fallback to name endpoint (works better for hydrate notations like CuSO4.5H2O).
+        for (const candidate of candidates) {
+            const cid = await fetchFirstCidByNameQuery(candidate);
+            if (!cid) continue;
+
+            const prop = await fetchProperties(cid);
+            return {
+                cid,
+                smiles: prop?.smiles || undefined
+            };
+        }
+
+        return null;
     } catch (error) {
         console.error("PubChem formula lookup error:", error);
         return null;

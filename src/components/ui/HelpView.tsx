@@ -39,8 +39,8 @@ export function HelpView() {
                             <strong>Goal:</strong> Find the molecular weight of copper sulfate pentahydrate.
                         </p>
                         <ol className="list-decimal pl-5 text-sm mt-2 space-y-1">
-                            <li>Type <code className="bg-white/10 px-1 rounded">CuSO4·5H2O</code> (or <code className="bg-white/10 px-1 rounded">CuSO4.5H2O</code>)</li>
-                            <li>Press Enter or click Search</li>
+                            <li>Type <code className="bg-white/10 px-1 rounded">CuSO4·5H2O</code> (or <code className="bg-white/10 px-1 rounded">CuSO4.5H2O</code> or <code className="bg-white/10 px-1 rounded">CuSO4*5H2O</code>)</li>
+                            <li>Press Enter or click Search if the formula does not show up automatically</li>
                             <li><strong>Result:</strong> 249.69 g/mol</li>
                         </ol>
                     </div>

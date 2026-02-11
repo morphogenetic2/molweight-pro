@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useStore } from "@/store/useStore";
 import { Search, Loader2, Scale, Beaker, Pipette, Atom, ArrowRightLeft, Lock } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
@@ -27,20 +27,58 @@ export default function MolarityCalculator() {
     const [searchTerm, setSearchTerm] = useState("");
     const [searching, setSearching] = useState(false);
     const [lookupResult, setLookupResult] = useState<{ name?: string, formula?: string, cid?: number } | null>(null);
+    const requestSeqRef = useRef(0);
 
-    const debouncedSearch = useDebounce(searchTerm, 600);
+    const debouncedSearch = useDebounce(searchTerm, 500);
 
-    // Auto-calculate for local formulas on-the-fly
-    useEffect(() => {
-        const query = debouncedSearch.trim();
-        if (!query) return;
-
-        const res = tryCalculateMw(query);
-        if (res) {
-            setMolarityState({ mw: res.mw });
-            setLookupResult({ formula: res.formula });
+    const runLookup = useCallback(async (rawQuery: string) => {
+        const query = rawQuery.trim();
+        if (!query) {
+            requestSeqRef.current += 1;
+            setSearching(false);
+            setLookupResult(null);
+            return;
         }
-    }, [debouncedSearch, setMolarityState]);
+
+        const requestSeq = ++requestSeqRef.current;
+        setSearching(true);
+
+        try {
+            // 1. Try local parse first
+            const localResult = tryCalculateMw(query);
+            if (localResult) {
+                if (requestSeq !== requestSeqRef.current) return;
+                setMolarityState({ mw: localResult.mw });
+                setLookupResult({ formula: localResult.formula });
+                return;
+            }
+
+            // 2. Fallback to PubChem
+            const res = await lookupPubChem(query);
+            if (requestSeq !== requestSeqRef.current) return;
+
+            if (res) {
+                setMolarityState({ mw: res.mw });
+                setLookupResult({ name: res.name, formula: res.formula, cid: res.cid });
+            } else {
+                setLookupResult(null);
+            }
+        } catch (error) {
+            if (requestSeq === requestSeqRef.current) {
+                setLookupResult(null);
+            }
+            console.error(error);
+        } finally {
+            if (requestSeq === requestSeqRef.current) {
+                setSearching(false);
+            }
+        }
+    }, [setMolarityState]);
+
+    // Auto-lookup after 0.5s idle typing (formula + PubChem fallback)
+    useEffect(() => {
+        void runLookup(debouncedSearch);
+    }, [debouncedSearch, runLookup]);
 
     const num = (v: string | number) => {
         const n = parseFloat(String(v));
@@ -51,33 +89,7 @@ export default function MolarityCalculator() {
     // --- Lookup Logic ---
     const handleLookup = async (e?: React.FormEvent<HTMLFormElement>) => {
         e?.preventDefault();
-        const query = searchTerm.trim();
-        if (!query) return;
-
-        setSearching(true);
-        setLookupResult(null);
-
-        try {
-            // 1. Try local parse first
-            const localResult = tryCalculateMw(query);
-            if (localResult) {
-                setMolarityState({ mw: localResult.mw });
-                setLookupResult({ formula: localResult.formula });
-                setSearching(false);
-                return;
-            }
-
-            // 2. Fallback to PubChem
-            const res = await lookupPubChem(query);
-            if (res) {
-                setMolarityState({ mw: res.mw });
-                setLookupResult({ name: res.name, formula: res.formula, cid: res.cid });
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setSearching(false);
-        }
+        await runLookup(searchTerm);
     };
 
     // --- Calculation Logic (Powered by Engine) ---

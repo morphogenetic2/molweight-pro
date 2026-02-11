@@ -10,15 +10,35 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Loader2, AlertCircle, Download } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { parseFormula, calculateMw, ChemicalData, normalizeFormula, tryCalculateMw } from "@/lib/parser";
+import { parseFormula, ChemicalData, normalizeFormula, tryCalculateMw } from "@/lib/parser";
 import { lookupPubChem, lookupPubChemByFormula } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import Molecule2D from "../ui/Molecule2D";
 import Molecule3D from "../ui/Molecule3D";
 import { useDebounce } from "@/lib/hooks/useDebounce";
+
+function hasHydrateWater(formula: string): boolean {
+    // Matches hydrate separators + optional multiplier + H2O
+    // Examples: CuSO4|5H2O, CuSO4·5H2O, CuSO4*5H2O
+    return /(^|[|·*•.])\s*\d*\.?\d*\s*H2O(?:$|[|·*•.])/i.test(formula);
+}
+
+function addExplicitHydrateWaters(smiles: string): string {
+    // PubChem often represents free waters in hydrates as disconnected "O" or "[OH2]"
+    // fragments. Convert those to bonded H-O-H so the renderer draws explicit atoms/bonds.
+    return smiles
+        .split(".")
+        .map((fragment) => {
+            if (fragment === "O" || fragment === "[OH2]") {
+                return "[H]O([H])";
+            }
+            return fragment;
+        })
+        .join(".");
+}
 
 /**
  * Molecular Weight Calculator Component
@@ -44,42 +64,93 @@ export default function MWCalculator() {
     const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
     const [imageLoading, setImageLoading] = useState(false);
     const [imageError, setImageError] = useState(false);
+    const requestSeqRef = useRef(0);
     const maxRenderSize = Math.min(400, moleculeSettings.maxRenderSize ?? 320);
 
-    const debouncedInput = useDebounce(mwInput, 600);
+    const debouncedInput = useDebounce(mwInput, 500);
+    const hydrateWaterInFormula = mwResult ? hasHydrateWater(mwResult.formula) : false;
+    const hydratedSmiles =
+        mwResult?.smiles && hydrateWaterInFormula
+            ? addExplicitHydrateWaters(mwResult.smiles)
+            : mwResult?.smiles;
 
-    // Auto-calculate for local formulas on-the-fly
-    useEffect(() => {
-        const query = debouncedInput.trim();
-        if (!query) return;
+    const runLookup = useCallback(
+        async (rawQuery: string, options: { addHistory: boolean; showErrors: boolean }) => {
+            const query = rawQuery.trim();
+            if (!query) return;
 
-        const updateResult = async () => {
-            // Try local advanced parser
-            const localResult = tryCalculateMw(query);
-            if (localResult) {
-                // Show "Searching for structure..." while the background API call runs
-                setIsSearchingStructure(true);
-                
-                try {
-                    // Background lookup for CID and SMILES to show 2D structure
+            const requestSeq = ++requestSeqRef.current;
+            setLoading(true);
+            setIsSearchingStructure(true);
+            setError(null);
+            setImageError(false);
+
+            try {
+                // Attempt 1: Local formula parsing (fast, offline-capable)
+                const localResult = tryCalculateMw(query);
+                if (localResult) {
+                    const comp = parseFormula(query);
+
+                    // Fetch CID and SMILES for 2D/3D structure visualization
                     const pubchemData = await lookupPubChemByFormula(query);
+                    if (requestSeq !== requestSeqRef.current) return;
 
                     const result: ChemicalData = {
                         mw: localResult.mw,
                         formula: localResult.formula,
-                        composition: parseFormula(query),
+                        composition: comp,
                         cid: pubchemData?.cid || undefined,
                         smiles: pubchemData?.smiles || undefined,
                     };
                     setMwResult(result);
-                } finally {
+                    if (options.addHistory) {
+                        addToHistory(result);
+                    }
+                    return;
+                }
+
+                // Attempt 2: PubChem API lookup (slower, requires network)
+                const res = await lookupPubChem(query);
+                if (requestSeq !== requestSeqRef.current) return;
+
+                if (res) {
+                    const comp = parseFormula(res.formula!);
+                    const result: ChemicalData = {
+                        mw: Number(res.mw),
+                        formula: normalizeFormula(res.formula!),
+                        name: res.name ? String(res.name) : undefined,
+                        cid: res.cid ? Number(res.cid) : undefined,
+                        smiles: res.smiles,
+                        composition: comp
+                    };
+                    setMwResult(result);
+                    if (options.addHistory) {
+                        addToHistory(result);
+                    }
+                } else if (options.showErrors) {
+                    setError("Could not find chemical or parse formula.");
+                }
+            } catch (err) {
+                if (requestSeq === requestSeqRef.current && options.showErrors) {
+                    setError("An error occurred during calculation.");
+                }
+                console.error("MW calculation error:", err);
+            } finally {
+                if (requestSeq === requestSeqRef.current) {
+                    setLoading(false);
                     setIsSearchingStructure(false);
                 }
             }
-        };
+        },
+        [addToHistory, setMwResult]
+    );
 
-        updateResult();
-    }, [debouncedInput, setMwResult]);
+    // Auto-lookup after 500ms idle typing
+    useEffect(() => {
+        const query = debouncedInput.trim();
+        if (!query) return;
+        void runLookup(query, { addHistory: false, showErrors: false });
+    }, [debouncedInput, runLookup]);
 
     /**
      * Handles form submission for molecular weight calculation.
@@ -97,62 +168,7 @@ export default function MWCalculator() {
      */
     const handleCalculate = async (e?: React.FormEvent<HTMLFormElement>) => {
         e?.preventDefault();
-        const query = mwInput.trim();
-        if (!query) return;
-
-        setLoading(true);
-        setIsSearchingStructure(true);
-        setError(null);
-        setImageError(false);
-
-        try {
-            // Attempt 1: Local formula parsing (fast, offline-capable)
-            const localResult = tryCalculateMw(query);
-            if (localResult) {
-                const comp = parseFormula(query);
-                
-                // Fetch CID and SMILES for 2D/3D structure visualization
-                const pubchemData = await lookupPubChemByFormula(query);
-                
-                const result: ChemicalData = {
-                    mw: localResult.mw,
-                    formula: localResult.formula,
-                    composition: comp,
-                    cid: pubchemData?.cid || undefined,
-                    smiles: pubchemData?.smiles || undefined,
-                };
-                setMwResult(result);
-                addToHistory(result);
-                setLoading(false);
-                setIsSearchingStructure(false);
-                return;
-            }
-
-            // Attempt 2: PubChem API lookup (slower, requires network)
-            const res = await lookupPubChem(mwInput);
-            if (res) {
-                const comp = parseFormula(res.formula!);
-                // Create a clean, serializable object
-                const result: ChemicalData = {
-                    mw: Number(res.mw),
-                    formula: normalizeFormula(res.formula!),
-                    name: res.name ? String(res.name) : undefined,
-                    cid: res.cid ? Number(res.cid) : undefined,
-                    smiles: res.smiles,
-                    composition: comp
-                };
-                setMwResult(result);
-                addToHistory(result);
-            } else {
-                setError("Could not find chemical or parse formula.");
-            }
-        } catch (err) {
-            setError("An error occurred during calculation.");
-            console.error("MW calculation error:", err);
-        } finally {
-            setLoading(false);
-            setIsSearchingStructure(false);
-        }
+        await runLookup(mwInput, { addHistory: true, showErrors: true });
     };
 
     /**
@@ -209,7 +225,9 @@ export default function MWCalculator() {
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Calculate"}
                         </button>
                     </div>
-                    <p className="text-[11px] text-zinc-500">Tip: formulas like <span className="font-mono text-zinc-400">CuSO4·5H2O</span> work too.</p>
+                    <p className="text-[11px] text-zinc-500">
+                        Tip: formulas like <span className="font-mono text-zinc-400">CuSO4·5H2O</span> work too.
+                    </p>
                     {error && (
                         <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 p-3 rounded-lg">
                             <AlertCircle className="h-4 w-4" />
@@ -289,13 +307,14 @@ export default function MWCalculator() {
                                         )}
 
                                         {/* Structure Rendering Logic */}
-                                        {mwResult.smiles ? (
+                                        {hydratedSmiles ? (
                                             <div className="w-full h-full flex items-center justify-center">
                                                 <Molecule2D 
-                                                    key={mwResult.smiles}
-                                                    smiles={mwResult.smiles} 
+                                                    key={hydratedSmiles}
+                                                    smiles={hydratedSmiles}
                                                     width={maxRenderSize}
                                                     height={maxRenderSize}
+                                                    forceExplicitHydrogens={hydrateWaterInFormula}
                                                 />
                                             </div>
                                         ) : mwResult.cid ? (
