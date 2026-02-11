@@ -43,7 +43,7 @@ export const useStore = create<AppState>()(
         }),
         {
             name: "molweight-storage-v2",
-            version: 2,
+            version: 4,
             migrate: (persistedState: unknown) => {
                 const state = (typeof persistedState === "object" && persistedState !== null
                     ? { ...(persistedState as Record<string, unknown>) }
@@ -129,17 +129,43 @@ export const useStore = create<AppState>()(
 
                 const mode = serialState.mode === "custom" ? "custom" : "auto";
                 const allowedPipetteMinimums = new Set([0.001, 0.01, 0.02, 0.2, 1]);
+                const allowedOveragePercents = new Set([0, 10, 15]);
                 const minPipetteVolumeUl =
                     typeof serialState.minPipetteVolumeUl === "number" &&
                     allowedPipetteMinimums.has(serialState.minPipetteVolumeUl)
                         ? serialState.minPipetteVolumeUl
                         : DEFAULT_SERIAL_DILUTION.minPipetteVolumeUl;
+                const overagePercent =
+                    typeof serialState.overagePercent === "number" &&
+                    allowedOveragePercents.has(serialState.overagePercent)
+                        ? serialState.overagePercent
+                        : DEFAULT_SERIAL_DILUTION.overagePercent;
+                const replicates =
+                    typeof serialState.replicates === "number" &&
+                    Number.isInteger(serialState.replicates) &&
+                    serialState.replicates >= 1
+                        ? serialState.replicates
+                        : DEFAULT_SERIAL_DILUTION.replicates;
+                const extraSamples =
+                    typeof serialState.extraSamples === "number" &&
+                    Number.isInteger(serialState.extraSamples) &&
+                    serialState.extraSamples >= 0
+                        ? serialState.extraSamples
+                        : DEFAULT_SERIAL_DILUTION.extraSamples;
+                const stockConcentration =
+                    typeof serialState.stockConcentration === "string" && serialState.stockConcentration.trim() !== ""
+                        ? serialState.stockConcentration
+                        : DEFAULT_SERIAL_DILUTION.stockConcentration;
                 state.serialDilutionState = {
                     ...DEFAULT_SERIAL_DILUTION,
                     ...serialState,
                     mode,
+                    stockConcentration,
                     exactLastStep: Boolean(serialState.exactLastStep),
                     minPipetteVolumeUl,
+                    overagePercent,
+                    replicates,
+                    extraSamples,
                 };
 
                 return state;

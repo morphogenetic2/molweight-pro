@@ -160,11 +160,15 @@ export type SerialDilutionMode = "auto" | "custom";
 
 export interface SerialDilutionState {
     mode: SerialDilutionMode;
+    stockConcentration: string;
     startConcentration: string;
     targetConcentration: string;
     concentrationUnit: string;
     finalVolume: string;
     volumeUnit: string;
+    replicates: number;
+    extraSamples: number;
+    overagePercent: number;
     autoRatio: string;
     customRatios: string;
     exactLastStep: boolean;

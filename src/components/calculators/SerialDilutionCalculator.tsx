@@ -28,6 +28,8 @@ interface PlanResult {
     steps: SerialStep[];
     totalDiluent: number;
     stockNeeded: number;
+    preparedVolumePerStep: number | null;
+    aliquotCount: number;
     finalConcentration: number | null;
     targetReached: boolean;
     targetExact: boolean;
@@ -60,7 +62,11 @@ function formatNumber(value: number, digits = 6): string {
 }
 
 function parseDilutionFactor(raw: string): number | null {
-    const token = raw.trim().toLowerCase().replace(/\s+/g, "");
+    const token = raw
+        .trim()
+        .toLowerCase()
+        .replace(/[×*]/g, "x")
+        .replace(/\s+/g, "");
     if (!token) return null;
 
     const simpleMatch = token.match(/^x?(\d*\.?\d+)$/);
@@ -84,6 +90,36 @@ function parseDilutionFactor(raw: string): number | null {
 
     const factor = right / left;
     return factor > 1 ? factor : null;
+}
+
+function splitCustomRatioTokens(raw: string): { tokens: string[]; invalidFragments: string[] } {
+    const normalized = raw.replace(/[×*]/g, "x");
+    const segments = normalized
+        .split(/[,;\n]+/)
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+    const tokens: string[] = [];
+    const invalidFragments: string[] = [];
+    const exprRegex = /\d*\.?\d+\s*[:/]\s*\d*\.?\d+|x\s*\d*\.?\d+|\d*\.?\d+/gi;
+
+    for (const segment of segments) {
+        const matches = segment.match(exprRegex)?.map((m) => m.trim()).filter(Boolean) ?? [];
+        if (matches.length === 0) {
+            invalidFragments.push(segment);
+            continue;
+        }
+
+        const remainder = segment.replace(exprRegex, " ").replace(/\s+/g, "");
+        if (remainder.length > 0) {
+            invalidFragments.push(segment);
+            continue;
+        }
+
+        tokens.push(...matches);
+    }
+
+    return { tokens, invalidFragments };
 }
 
 function quantizeTransferToPipette(
@@ -156,9 +192,15 @@ function escapeCsv(value: string): string {
 function buildProtocolText(params: {
     mode: SerialDilutionMode;
     steps: SerialStep[];
+    stockConcentration: string;
     startConcentration: string;
     concentrationUnit: string;
+    finalVolume: string;
     volumeUnit: string;
+    replicates: number;
+    extraSamples: number;
+    overagePercent: number;
+    preparedVolumePerStep: number | null;
     targetConcentration: string;
     autoRatio: string;
     exactLastStep: boolean;
@@ -167,9 +209,15 @@ function buildProtocolText(params: {
     const {
         mode,
         steps,
+        stockConcentration,
         startConcentration,
         concentrationUnit,
+        finalVolume,
         volumeUnit,
+        replicates,
+        extraSamples,
+        overagePercent,
+        preparedVolumePerStep,
         targetConcentration,
         autoRatio,
         exactLastStep,
@@ -179,14 +227,19 @@ function buildProtocolText(params: {
     const lines = [
         "Serial Dilution Protocol",
         `Mode: ${mode === "auto" ? "Auto" : "Custom"}`,
-        `Start concentration: ${startConcentration} ${concentrationUnit}`,
-        `Final volume per step: ${steps.length > 0 ? formatVolumeWithAutoUl(steps[0].transferVolume + steps[0].diluentVolume, volumeUnit) : "-"}`,
+        `Stock concentration: ${stockConcentration} ${concentrationUnit}`,
+        `First curve concentration: ${startConcentration} ${concentrationUnit}`,
+        `Per-sample final volume: ${finalVolume} ${volumeUnit}`,
+        `Replicates: ${replicates}`,
+        `Extra samples: ${extraSamples}`,
+        `Overage: ${overagePercent}%`,
+        `Prepared volume per step: ${preparedVolumePerStep ? formatVolumeWithAutoUl(preparedVolumePerStep, volumeUnit) : "-"}`,
         `Minimum pipettable volume: ${formatNumber(minPipetteVolumeUl)} μL`,
     ];
 
     if (mode === "auto") {
         lines.push(`Target concentration: ${targetConcentration} ${concentrationUnit}`);
-        lines.push(`Base step ratio: ${autoRatio}`);
+        lines.push(`Base dilution factor: ${autoRatio}`);
         lines.push(`Exact last step: ${exactLastStep ? "yes" : "no"}`);
     }
 
@@ -203,7 +256,7 @@ function buildProtocolText(params: {
 function buildProtocolCsv(steps: SerialStep[], concentrationUnit: string, volumeUnit: string): string {
     const header = [
         "Step",
-        "Ratio",
+        "Dilution",
         `From (${concentrationUnit})`,
         `To (${concentrationUnit})`,
         "Transfer Volume",
@@ -231,29 +284,64 @@ export default function SerialDilutionCalculator() {
     const { push } = useToastStore();
     const {
         mode,
+        stockConcentration,
         startConcentration,
         targetConcentration,
         concentrationUnit,
         finalVolume,
         volumeUnit,
+        replicates,
+        extraSamples,
+        overagePercent,
         autoRatio,
         customRatios,
         exactLastStep,
         minPipetteVolumeUl,
     } = serialDilutionState;
+    const safeReplicates = Number.isInteger(replicates) && replicates >= 1 ? replicates : 1;
+    const safeExtraSamples = Number.isInteger(extraSamples) && extraSamples >= 0 ? extraSamples : 0;
+    const safeOveragePercent = overagePercent === 10 || overagePercent === 15 ? overagePercent : 0;
+    const safeMinPipetteVolumeUl =
+        minPipetteVolumeUl === 0.001 ||
+        minPipetteVolumeUl === 0.01 ||
+        minPipetteVolumeUl === 0.02 ||
+        minPipetteVolumeUl === 0.2 ||
+        minPipetteVolumeUl === 1
+            ? minPipetteVolumeUl
+            : 0.2;
+    const safeStockConcentration = typeof stockConcentration === "string" && stockConcentration.trim() !== ""
+        ? stockConcentration
+        : startConcentration;
 
     const plan = useMemo<PlanResult>(() => {
         const errors: string[] = [];
 
+        const stock = parsePositiveNumber(safeStockConcentration);
+        if (!stock) {
+            errors.push("Stock concentration must be a number greater than zero.");
+        }
+
         const start = parsePositiveNumber(startConcentration);
         if (!start) {
             errors.push("Start concentration must be a number greater than zero.");
+        }
+        if (stock && start && stock < start) {
+            errors.push("Stock concentration must be greater than or equal to start concentration.");
         }
 
         const volume = parsePositiveNumber(finalVolume);
         if (!volume) {
             errors.push("Final volume per step must be a number greater than zero.");
         }
+        const replicateCount = safeReplicates;
+        const extraCount = safeExtraSamples;
+        const overage = safeOveragePercent;
+
+        const aliquotCount = replicateCount + extraCount;
+        const preparedVolumePerStep =
+            volume && aliquotCount > 0
+                ? volume * aliquotCount * (1 + overage / 100)
+                : null;
 
         let factors: number[] = [];
         let target: number | null = null;
@@ -294,30 +382,30 @@ export default function SerialDilutionCalculator() {
                 }
             }
         } else {
-            const tokens = customRatios
-                .split(/[,;\n]+/)
-                .map((token) => token.trim())
-                .filter(Boolean);
+            const { tokens, invalidFragments } = splitCustomRatioTokens(customRatios);
 
             if (tokens.length === 0) {
                 errors.push("Add at least one ratio in custom mode (example: 1:2, 1:4, 1:2).");
             } else {
                 const parsed = tokens.map((token) => ({ token, factor: parseDilutionFactor(token) }));
                 const invalid = parsed.filter((entry) => !entry.factor).map((entry) => entry.token);
+                invalid.push(...invalidFragments);
                 if (invalid.length > 0) {
-                    errors.push(`Invalid ratio(s): ${invalid.join(", ")}.`);
+                    errors.push(`Invalid dilution(s): ${invalid.join(", ")}.`);
                 } else {
                     factors = parsed.map((entry) => entry.factor as number);
                 }
             }
         }
 
-        if (errors.length > 0 || !start || !volume) {
+        if (errors.length > 0 || !start || !volume || !preparedVolumePerStep) {
             return {
                 errors,
                 steps: [],
                 totalDiluent: 0,
                 stockNeeded: 0,
+                preparedVolumePerStep,
+                aliquotCount,
                 finalConcentration: null,
                 targetReached: false,
                 targetExact: false,
@@ -329,13 +417,13 @@ export default function SerialDilutionCalculator() {
             (acc, factor, index) => {
                 const fromConcentration = acc.currentConcentration;
                 const toConcentration = fromConcentration / factor;
-                const theoreticalTransferVolume = volume / factor;
-                const theoreticalDiluentVolume = volume - theoreticalTransferVolume;
+                const theoreticalTransferVolume = preparedVolumePerStep / factor;
+                const theoreticalDiluentVolume = preparedVolumePerStep - theoreticalTransferVolume;
                 const practical = quantizeTransferToPipette(
                     theoreticalTransferVolume,
                     volumeUnit,
-                    minPipetteVolumeUl,
-                    volume
+                    safeMinPipetteVolumeUl,
+                    preparedVolumePerStep
                 );
                 const cumulativeFactor = acc.currentCumulative * factor;
                 const row: SerialStep = {
@@ -365,7 +453,40 @@ export default function SerialDilutionCalculator() {
             }
         );
 
-        const steps = reduced.steps;
+        let steps = reduced.steps;
+
+        if (stock && start && stock > start && preparedVolumePerStep) {
+            const stepZeroFactor = stock / start;
+            const theoreticalTransferVolume = preparedVolumePerStep / stepZeroFactor;
+            const theoreticalDiluentVolume = preparedVolumePerStep - theoreticalTransferVolume;
+            const practical = quantizeTransferToPipette(
+                theoreticalTransferVolume,
+                volumeUnit,
+                safeMinPipetteVolumeUl,
+                preparedVolumePerStep
+            );
+
+            const stepZero: SerialStep = {
+                step: 0,
+                ratio: ratioLabel(stepZeroFactor),
+                factor: stepZeroFactor,
+                fromConcentration: stock,
+                toConcentration: start,
+                transferVolume: practical.transferVolume,
+                diluentVolume: practical.diluentVolume,
+                theoreticalTransferVolume,
+                theoreticalDiluentVolume,
+                cumulativeFactor: stepZeroFactor,
+                adjustedForPipette: practical.adjustedForPipette,
+                belowMinPipette: practical.belowMinPipette,
+            };
+
+            steps = [stepZero, ...steps.map((row) => ({
+                ...row,
+                cumulativeFactor: row.cumulativeFactor * stepZeroFactor,
+            }))];
+        }
+
         const totalDiluent = steps.reduce((sum, row) => sum + row.diluentVolume, 0);
         const stockNeeded = steps[0]?.transferVolume ?? 0;
         const finalConcentration = steps[steps.length - 1]?.toConcentration ?? start;
@@ -378,12 +499,14 @@ export default function SerialDilutionCalculator() {
             steps,
             totalDiluent,
             stockNeeded,
+            preparedVolumePerStep,
+            aliquotCount,
             finalConcentration,
             targetReached,
             targetExact,
             target,
         };
-    }, [mode, startConcentration, targetConcentration, finalVolume, autoRatio, customRatios, exactLastStep, volumeUnit, minPipetteVolumeUl]);
+    }, [mode, safeStockConcentration, startConcentration, targetConcentration, finalVolume, safeReplicates, safeExtraSamples, safeOveragePercent, autoRatio, customRatios, exactLastStep, volumeUnit, safeMinPipetteVolumeUl]);
 
     const pipetteAdjustedSteps = plan.steps.filter((step) => step.adjustedForPipette).length;
     const belowMinSteps = plan.steps.filter((step) => step.belowMinPipette).length;
@@ -393,15 +516,21 @@ export default function SerialDilutionCalculator() {
             buildProtocolText({
                 mode,
                 steps: plan.steps,
+                stockConcentration: safeStockConcentration,
                 startConcentration,
                 concentrationUnit,
+                finalVolume,
                 volumeUnit,
+                replicates: safeReplicates,
+                extraSamples: safeExtraSamples,
+                overagePercent: safeOveragePercent,
+                preparedVolumePerStep: plan.preparedVolumePerStep,
                 targetConcentration,
                 autoRatio,
                 exactLastStep,
-                minPipetteVolumeUl,
+                minPipetteVolumeUl: safeMinPipetteVolumeUl,
             }),
-        [mode, plan.steps, startConcentration, concentrationUnit, volumeUnit, targetConcentration, autoRatio, exactLastStep, minPipetteVolumeUl]
+        [mode, plan.steps, safeStockConcentration, startConcentration, concentrationUnit, finalVolume, volumeUnit, safeReplicates, safeExtraSamples, safeOveragePercent, plan.preparedVolumePerStep, targetConcentration, autoRatio, exactLastStep, safeMinPipetteVolumeUl]
     );
 
     const protocolCsv = useMemo(
@@ -475,7 +604,17 @@ export default function SerialDilutionCalculator() {
 
                 <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
                     <ValueUnitInput
-                        label="Start Concentration"
+                        label="Stock Concentration"
+                        value={stockConcentration ?? ""}
+                        unit={concentrationUnit}
+                        onValueChange={(value) => setSerialDilutionState({ stockConcentration: value })}
+                        onUnitChange={(unit) => setSerialDilutionState({ concentrationUnit: unit })}
+                        options={CONC_OPTS}
+                        placeholder="100"
+                    />
+
+                    <ValueUnitInput
+                        label="Start Concentration (First Curve Step)"
                         value={startConcentration}
                         unit={concentrationUnit}
                         onValueChange={(value) => setSerialDilutionState({ startConcentration: value })}
@@ -505,10 +644,53 @@ export default function SerialDilutionCalculator() {
                         placeholder="1"
                     />
 
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-500 uppercase">Replicates & Safety</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Replicates</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    step={1}
+                                    value={safeReplicates}
+                                    onChange={(e) => setSerialDilutionState({ replicates: Number.parseInt(e.target.value, 10) || 0 })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Extra Samples</label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={safeExtraSamples}
+                                    onChange={(e) => setSerialDilutionState({ extraSamples: Number.parseInt(e.target.value, 10) || 0 })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Overage</label>
+                                <select
+                                    value={String(safeOveragePercent)}
+                                    onChange={(e) => setSerialDilutionState({ overagePercent: Number.parseInt(e.target.value, 10) || 0 })}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                >
+                                    <option value="0" className="bg-zinc-900">0%</option>
+                                    <option value="10" className="bg-zinc-900">10%</option>
+                                    <option value="15" className="bg-zinc-900">15%</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p className="text-[11px] text-zinc-500">
+                            Prepared per step = per-sample volume × (replicates + extra samples) × (1 + overage).
+                        </p>
+                    </div>
+
                     <div className="space-y-1">
                         <label className="text-xs font-bold text-zinc-500 uppercase">Minimum Pipettable Volume</label>
                         <select
-                            value={String(minPipetteVolumeUl)}
+                            value={String(safeMinPipetteVolumeUl)}
                             onChange={(e) => setSerialDilutionState({ minPipetteVolumeUl: Number.parseFloat(e.target.value) })}
                             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40"
                         >
@@ -523,7 +705,7 @@ export default function SerialDilutionCalculator() {
 
                     {mode === "auto" ? (
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-zinc-500 uppercase">Step Ratio</label>
+                            <label className="text-xs font-bold text-zinc-500 uppercase">Dilution Factor</label>
                             <input
                                 value={autoRatio}
                                 onChange={(e) => setSerialDilutionState({ autoRatio: e.target.value })}
@@ -539,11 +721,11 @@ export default function SerialDilutionCalculator() {
                                 />
                                 Adjust the last step to hit target concentration exactly.
                             </label>
-                            <p className="text-[11px] text-zinc-500">Accepted ratio formats: <span className="font-mono">1:10</span>, <span className="font-mono">x4</span>, <span className="font-mono">4</span>.</p>
+                            <p className="text-[11px] text-zinc-500">Accepted dilution formats: <span className="font-mono">1:10</span>, <span className="font-mono">x4</span>, <span className="font-mono">4</span>.</p>
                         </div>
                     ) : (
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-zinc-500 uppercase">Custom Ratio Sequence</label>
+                            <label className="text-xs font-bold text-zinc-500 uppercase">Custom Dilution Sequence</label>
                             <textarea
                                 value={customRatios}
                                 onChange={(e) => setSerialDilutionState({ customRatios: e.target.value })}
@@ -551,7 +733,7 @@ export default function SerialDilutionCalculator() {
                                 placeholder="1:2, 1:4, 1:2"
                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40 resize-none"
                             />
-                            <p className="text-[11px] text-zinc-500">Separate steps by comma, semicolon, or new line.</p>
+                            <p className="text-[11px] text-zinc-500">Each step accepts <span className="font-mono">1:2</span>, <span className="font-mono">x2</span>, or <span className="font-mono">2</span>. Separate by comma, semicolon, new line, or space.</p>
                         </div>
                     )}
                 </div>
@@ -615,7 +797,7 @@ export default function SerialDilutionCalculator() {
                                 <thead className="bg-white/5 text-zinc-400 text-xs uppercase tracking-wider">
                                     <tr>
                                         <th className="text-left px-3 py-2">Step</th>
-                                        <th className="text-left px-3 py-2">Ratio</th>
+                                        <th className="text-left px-3 py-2">Dilution</th>
                                         <th className="text-left px-3 py-2">From</th>
                                         <th className="text-left px-3 py-2">To</th>
                                         <th className="text-left px-3 py-2">Transfer</th>
@@ -653,7 +835,7 @@ export default function SerialDilutionCalculator() {
                             </table>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
                                 <p className="text-[10px] uppercase tracking-wider text-zinc-500">Stock Needed</p>
                                 <p className="mt-1 text-base font-mono text-white">{formatVolumeWithAutoUl(plan.stockNeeded, volumeUnit)}</p>
@@ -661,6 +843,11 @@ export default function SerialDilutionCalculator() {
                             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
                                 <p className="text-[10px] uppercase tracking-wider text-zinc-500">Total Diluent</p>
                                 <p className="mt-1 text-base font-mono text-white">{formatVolumeWithAutoUl(plan.totalDiluent, volumeUnit)}</p>
+                            </div>
+                            <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                                <p className="text-[10px] uppercase tracking-wider text-zinc-500">Prepared / Step</p>
+                                <p className="mt-1 text-base font-mono text-white">{formatVolumeWithAutoUl(plan.preparedVolumePerStep ?? 0, volumeUnit)}</p>
+                                <p className="text-[10px] text-zinc-500 mt-1">{plan.aliquotCount} sample-equivalents</p>
                             </div>
                             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
                                 <p className="text-[10px] uppercase tracking-wider text-zinc-500">Final Concentration</p>
@@ -686,7 +873,7 @@ export default function SerialDilutionCalculator() {
             <section className="glass-card p-4 sm:p-5 text-xs text-zinc-500 flex items-start gap-3">
                 <ArrowRightLeft className="h-4 w-4 text-indigo-400 mt-0.5 shrink-0" />
                 <p>
-                    This planner assumes each step is prepared from the previous step at the same final volume. If you want plate layouts, branching trees, or replicates, we can add that next.
+                    This planner assumes each step is prepared from the previous step at the same volume and now supports replicates, extra samples, and safety overage. If you want plate layouts or branching trees, we can add that next.
                 </p>
             </section>
         </div>
