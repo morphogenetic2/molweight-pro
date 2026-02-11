@@ -2,12 +2,22 @@
 
 import { useMemo, useState } from "react";
 import { AlertCircle, LayoutGrid, WandSparkles } from "lucide-react";
+import { parseDilutionFactor } from "@/lib/chemistry/dilution";
 import { convertUnitValue, getUnitLabel, parseValueWithUnit } from "@/lib/chemistry/units";
+import {
+    buildDilutionConcentrationMap,
+    buildOrderedDilutionFactors,
+    buildPerceptualShadeStyles,
+    buildSequentialDilutionSteps,
+    findMonotonicIncreaseViolations,
+    type FillMode,
+    type OrderedDilutionFactor,
+    type WellShadeStyle,
+} from "@/lib/platePlanner/logic";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
 
 type PlannerMode = "dilution" | "concentration";
-type FillMode = "column" | "row";
 type FillDirection = "right" | "left" | "down" | "up";
 type PreparationMethod = "direct" | "serial";
 
@@ -64,6 +74,22 @@ interface SerialInstruction {
     transferToNext: number;
 }
 
+interface SequentialDilutionInstruction {
+    key: string;
+    wellId: string;
+    label: string;
+    sourceLabel: string;
+    stepFactor: number;
+    cumulativeFactor: number;
+    finalDisplay: string;
+    transferVolume: number;
+    diluentVolume: number;
+    fromStart: boolean;
+    dispenseVolume: number;
+    requiredTotalVolume: number;
+    transferToNext: number;
+}
+
 interface Coord {
     row: number;
     col: number;
@@ -93,6 +119,24 @@ const CONCENTRATION_UNITS = [
 
 const VOLUME_UNITS = ["μL", "mL"];
 const BLANK_TOKEN = "BLANK";
+const SHADE_BIN_COLORS_LOW_TO_HIGH = ["#183746", "#1f4f60", "#2a6878", "#36858f", "#4ca9a5", "#75c7b8"];
+const SHADE_BACKGROUND_ALPHA = 0.34;
+const SHADE_BORDER_ALPHA = 0.7;
+const BLANK_SHADE_STYLE: WellShadeStyle = {
+    backgroundColor: "rgba(15, 23, 42, 0.22)",
+    borderColor: "rgba(100, 116, 139, 0.26)",
+};
+
+function hexToRgba(hex: string, alpha: number): string {
+    const normalized = hex.replace("#", "");
+    if (!/^[\da-fA-F]{6}$/.test(normalized)) {
+        return `rgba(0, 0, 0, ${alpha})`;
+    }
+    const r = Number.parseInt(normalized.slice(0, 2), 16);
+    const g = Number.parseInt(normalized.slice(2, 4), 16);
+    const b = Number.parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 function parsePositiveNumber(raw: string): number | null {
     const value = Number.parseFloat(raw);
@@ -143,38 +187,6 @@ function formatVolumeWithAutoMicro(value: number, unit: string): string {
 function getWellInputWidthCh(value: string): number {
     const trimmedLength = value.trim().length;
     return Math.min(24, Math.max(12, trimmedLength || 12));
-}
-
-function parseDilutionFactor(raw: string): number | null {
-    const token = raw
-        .trim()
-        .toLowerCase()
-        .replace(/[×*]/g, "x")
-        .replace(/\s+/g, "");
-    if (!token) return null;
-
-    const numeric = token.match(/^x?(\d*\.?\d+)$/);
-    if (numeric) {
-        const factor = Number.parseFloat(numeric[1]);
-        return factor > 1 ? factor : null;
-    }
-
-    const oneToN = token.match(/^1[:/](\d*\.?\d+)$/);
-    if (oneToN) {
-        const factor = Number.parseFloat(oneToN[1]);
-        return factor > 1 ? factor : null;
-    }
-
-    const ratio = token.match(/^(\d*\.?\d+)[:/](\d*\.?\d+)$/);
-    if (!ratio) return null;
-
-    const left = Number.parseFloat(ratio[1]);
-    const right = Number.parseFloat(ratio[2]);
-    if (!Number.isFinite(left) || !Number.isFinite(right) || left <= 0 || right <= 0) {
-        return null;
-    }
-    const factor = right / left;
-    return factor > 1 ? factor : null;
 }
 
 function isBlankAlias(raw: string): boolean {
@@ -527,6 +539,32 @@ export default function PlatePlannerCalculator() {
         const blankDispensedVolume = safePerWell * blankWells;
         const blankPreparedVolume = computePreparedVolume(blankWells);
 
+        const monotonicCheckEntries = entries
+            .map((entry) => {
+                const concentration = mode === "dilution"
+                    ? entry.finalValue
+                    : convertUnitValue(entry.finalValue, entry.finalUnit, startUnit) ?? entry.finalValue;
+                return {
+                    wellId: entry.wellId,
+                    concentration,
+                };
+            })
+            .filter((entry) => Number.isFinite(entry.concentration));
+
+        const monotonicViolations = findMonotonicIncreaseViolations({
+            entries: monotonicCheckEntries,
+            wellIds,
+            wellValues,
+            cols: plate.cols,
+            fillMode,
+            isBlank: (raw) => isBlankAlias(raw) || isCanonicalBlank(raw),
+        });
+        for (const violation of monotonicViolations) {
+            warnings.push(
+                `${violation.currentWellId}: concentration increases compared with ${violation.previousWellId} in ${fillMode}-wise order toward BLANK (${formatNumber(violation.currentConcentration)} > ${formatNumber(violation.previousConcentration)} ${getUnitLabel(startUnit)}).`
+            );
+        }
+
         return {
             errors,
             warnings,
@@ -538,15 +576,18 @@ export default function PlatePlannerCalculator() {
         };
     }, [
         extraSamples,
+        fillMode,
         filledWellIds,
         mode,
         overagePercent,
+        plate,
         perWellVolume,
         replicates,
         startUnit,
         startValue,
         stockUnit,
         stockValue,
+        wellIds,
         wellValues,
     ]);
 
@@ -611,6 +652,122 @@ export default function PlatePlannerCalculator() {
         () => new Map(serialInstructions.map((step) => [step.key, step])),
         [serialInstructions]
     );
+
+    const orderedDilutionFactors = useMemo<{ ordered: OrderedDilutionFactor[]; blankOrderingApplied: boolean }>(() => {
+        if (mode !== "dilution") {
+            return { ordered: [], blankOrderingApplied: false };
+        }
+
+        return buildOrderedDilutionFactors({
+            wellIds,
+            wellValues,
+            cols: plate.cols,
+            isBlank: (raw) => isBlankAlias(raw) || isCanonicalBlank(raw),
+            parseDilutionFactor,
+        });
+    }, [mode, plate.cols, wellIds, wellValues]);
+
+    const sequentialDilutionInstructions = useMemo<SequentialDilutionInstruction[]>(() => {
+        if (mode !== "dilution") return [];
+
+        const startConcentration = parsePositiveNumber(startValue);
+        const perWell = parsePositiveNumber(perWellVolume);
+        const extraCount = parseNonNegativeInteger(extraSamples) ?? 0;
+        const parsedOverage = Number.parseFloat(overagePercent);
+        const safeOverage = Number.isFinite(parsedOverage) && parsedOverage >= 0 ? parsedOverage : 0;
+
+        if (!startConcentration || !perWell) {
+            return [];
+        }
+
+        const orderedFactors = orderedDilutionFactors.ordered;
+
+        if (orderedFactors.length === 0) return [];
+
+        const steps = buildSequentialDilutionSteps({
+            orderedFactors,
+            startConcentration,
+            perWellVolume: perWell,
+            extraCount,
+            overagePercent: safeOverage,
+        });
+
+        return steps.map((step, index) => {
+            const sourceLabel = step.sourceWellId && step.sourceStepFactor
+                ? `${step.sourceWellId} (${ratioLabel(step.sourceStepFactor)})`
+                : "start solution";
+            return {
+                key: `${step.wellId}-${index}`,
+                wellId: step.wellId,
+                label: ratioLabel(step.stepFactor),
+                sourceLabel,
+                stepFactor: step.stepFactor,
+                cumulativeFactor: step.cumulativeFactor,
+                finalDisplay: `${formatNumber(step.finalConcentration)} ${getUnitLabel(startUnit)}`,
+                transferVolume: step.transferVolume,
+                diluentVolume: step.diluentVolume,
+                fromStart: step.fromStart,
+                dispenseVolume: step.dispenseVolume,
+                requiredTotalVolume: step.requiredTotalVolume,
+                transferToNext: step.transferToNext,
+            };
+        });
+    }, [extraSamples, mode, orderedDilutionFactors.ordered, overagePercent, perWellVolume, startUnit, startValue]);
+
+    const wellShadeStyleById = useMemo(() => {
+        const isBlank = (raw: string) => isBlankAlias(raw) || isCanonicalBlank(raw);
+
+        let concentrationByWell = new Map<string, number>();
+        let blankWellIds = new Set<string>();
+
+        if (mode === "dilution") {
+            const startConcentration = parsePositiveNumber(startValue) ?? 0;
+            const dilutionMap = buildDilutionConcentrationMap({
+                wellIds,
+                wellValues,
+                cols: plate.cols,
+                fillMode,
+                startConcentration,
+                isBlank,
+                parseDilutionFactor,
+            });
+            concentrationByWell = dilutionMap.concentrationByWell;
+            blankWellIds = dilutionMap.blankWellIds;
+        } else {
+            for (const wellId of wellIds) {
+                const raw = (wellValues[wellId] ?? "").trim();
+                if (raw !== "" && isBlank(raw)) {
+                    blankWellIds.add(wellId);
+                }
+            }
+
+            const startConcentration = parsePositiveNumber(startValue);
+            if (startConcentration) {
+                for (const entry of analysis.entries) {
+                    if (entry.dilutionFactor > 0) {
+                        concentrationByWell.set(
+                            entry.wellId,
+                            startConcentration / Math.max(entry.dilutionFactor, 1e-12)
+                        );
+                    }
+                }
+            }
+        }
+
+        return buildPerceptualShadeStyles({
+            concentrationByWell,
+            blankWellIds,
+            paletteHexLowToHigh: SHADE_BIN_COLORS_LOW_TO_HIGH,
+            backgroundAlpha: SHADE_BACKGROUND_ALPHA,
+            borderAlpha: SHADE_BORDER_ALPHA,
+            blankStyle: BLANK_SHADE_STYLE,
+        });
+    }, [analysis.entries, fillMode, mode, plate.cols, startValue, wellIds, wellValues]);
+
+    const useSequentialPreparationInstructions =
+        mode === "dilution" && sequentialDilutionInstructions.length > 0;
+    const useSequentialConditionSummary =
+        mode === "dilution" && sequentialDilutionInstructions.length > 0;
 
     const handleConcentrationUnitChange = (
         field: "stock" | "start",
@@ -825,6 +982,11 @@ export default function PlatePlannerCalculator() {
 
     const safeReplicates = parsePositiveInteger(replicates) ?? 1;
     const canFillReplicates = safeReplicates > 1 && filledWellIds.length > 0;
+    const perWellDispense = parsePositiveNumber(perWellVolume) ?? 0;
+    const hasConditionSummaryRows = useSequentialConditionSummary
+        ? sequentialDilutionInstructions.length > 0
+        : analysis.summaries.length > 0;
+    const showShadingLegend = wellShadeStyleById.size > 0;
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1053,30 +1215,34 @@ export default function PlatePlannerCalculator() {
                         className="grid gap-1.5 min-w-max"
                         style={{ gridTemplateColumns: `repeat(${plate.cols}, minmax(72px, 1fr))` }}
                     >
-                        {wellIds.map((wellId) => (
-                            <div key={wellId} className="rounded-lg border border-white/10 bg-white/[0.02] p-1.5 space-y-1">
-                                <div className="text-[10px] text-zinc-500 font-mono">{wellId}</div>
-                                {(() => {
-                                    const rawValue = wellValues[wellId] ?? "";
-                                    const blankDisplay = isCanonicalBlank(rawValue);
-                                    const inputWidthCh = getWellInputWidthCh(rawValue);
-                                    return (
-                                <input
-                                    value={rawValue}
-                                    onChange={(e) =>
-                                        setWellValues((prev) => ({ ...prev, [wellId]: e.target.value }))
-                                    }
-                                    onBlur={() => handleWellBlur(wellId)}
-                                    placeholder={mode === "dilution" ? "1:2" : `10 ${getUnitLabel(startUnit)}`}
-                                    className={`max-w-full bg-transparent border border-white/10 rounded px-1.5 py-1 text-[11px] outline-none focus:border-indigo-500/40 font-mono placeholder:text-zinc-700 placeholder:opacity-25 ${
-                                        blankDisplay ? "text-zinc-300 tracking-wide [font-variant:small-caps]" : "text-white"
-                                    }`}
-                                    style={{ width: `${inputWidthCh}ch` }}
-                                />
-                                    );
-                                })()}
-                            </div>
-                        ))}
+                        {wellIds.map((wellId) => {
+                            const rawValue = wellValues[wellId] ?? "";
+                            const blankDisplay = isCanonicalBlank(rawValue);
+                            const inputWidthCh = getWellInputWidthCh(rawValue);
+                            const cellStyle = wellShadeStyleById.get(wellId);
+
+                            return (
+                                <div
+                                    key={wellId}
+                                    className="rounded-lg border border-white/10 bg-white/[0.02] p-1.5 space-y-1 transition-colors duration-200"
+                                    style={cellStyle}
+                                >
+                                    <div className="text-[10px] text-zinc-500 font-mono">{wellId}</div>
+                                    <input
+                                        value={rawValue}
+                                        onChange={(e) =>
+                                            setWellValues((prev) => ({ ...prev, [wellId]: e.target.value }))
+                                        }
+                                        onBlur={() => handleWellBlur(wellId)}
+                                        placeholder={mode === "dilution" ? "1:2" : `10 ${getUnitLabel(startUnit)}`}
+                                        className={`max-w-full bg-transparent border border-white/10 rounded px-1.5 py-1 text-[11px] outline-none focus:border-indigo-500/40 font-mono placeholder:text-zinc-700 placeholder:opacity-25 ${
+                                            blankDisplay ? "text-zinc-300 tracking-wide [font-variant:small-caps]" : "text-white"
+                                        }`}
+                                        style={{ width: `${inputWidthCh}ch` }}
+                                    />
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
                 <p className="text-[11px] text-zinc-500">
@@ -1084,41 +1250,95 @@ export default function PlatePlannerCalculator() {
                         ? "Dilution wells accept 1:2, x2, or 2. Values <= 1 are flagged."
                         : 'Concentration wells accept values with units (for example 1M, 20 uM, 10 mM, 1 mg/mL). Bare numbers default to start unit. "0", "b", or "blank" are treated as BLANK.'}
                 </p>
+                {showShadingLegend && (
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-wider">
+                        <span>Low</span>
+                        <div className="flex items-center gap-1">
+                            {SHADE_BIN_COLORS_LOW_TO_HIGH.map((hex) => (
+                                <span
+                                    key={`shade-legend-${hex}`}
+                                    className="h-3.5 w-3.5 rounded-sm border"
+                                    style={{
+                                        backgroundColor: hexToRgba(hex, SHADE_BACKGROUND_ALPHA),
+                                        borderColor: hexToRgba(hex, SHADE_BORDER_ALPHA),
+                                    }}
+                                />
+                            ))}
+                        </div>
+                        <span>High</span>
+                    </div>
+                )}
             </section>
 
             <section className="glass-card p-4 sm:p-6 space-y-4">
                 <h3 className="text-sm sm:text-base font-bold text-zinc-200">Condition Summary</h3>
+                {mode === "dilution" && orderedDilutionFactors.blankOrderingApplied && (
+                    <p className="text-[11px] text-zinc-500">
+                        Sequence order is inferred from BLANK wells: dilution runs from wells farthest from BLANK toward BLANK.
+                    </p>
+                )}
 
-                {analysis.summaries.length === 0 ? (
+                {hasConditionSummaryRows ? (
+                    useSequentialConditionSummary ? (
+                        <div className="overflow-x-auto rounded-xl border border-white/10">
+                            <table className="w-full min-w-[860px] text-sm">
+                                <thead className="bg-white/5 text-zinc-400 text-xs uppercase tracking-wider">
+                                    <tr>
+                                        <th className="text-left px-3 py-2">Step</th>
+                                        <th className="text-left px-3 py-2">Well</th>
+                                        <th className="text-left px-3 py-2">Dilution Step</th>
+                                        <th className="text-left px-3 py-2">Cumulative</th>
+                                        <th className="text-left px-3 py-2">Final Concentration</th>
+                                        <th className="text-left px-3 py-2">Dispensed</th>
+                                        <th className="text-left px-3 py-2">Prepare (+extra/overage)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sequentialDilutionInstructions.map((step, index) => (
+                                        <tr key={`summary-seq-${step.key}`} className="border-t border-white/5 text-zinc-300">
+                                            <td className="px-3 py-2 font-mono">{index + 1}</td>
+                                            <td className="px-3 py-2 font-mono">{step.wellId}</td>
+                                            <td className="px-3 py-2 font-mono text-indigo-300">{ratioLabel(step.stepFactor)}</td>
+                                            <td className="px-3 py-2 font-mono text-cyan-300">{ratioLabel(step.cumulativeFactor)}</td>
+                                            <td className="px-3 py-2 font-mono">{step.finalDisplay}</td>
+                                            <td className="px-3 py-2 font-mono">{formatVolumeWithAutoMicro(perWellDispense, perWellVolumeUnit)}</td>
+                                            <td className="px-3 py-2 font-mono">{formatVolumeWithAutoMicro(step.dispenseVolume, perWellVolumeUnit)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto rounded-xl border border-white/10">
+                            <table className="w-full min-w-[760px] text-sm">
+                                <thead className="bg-white/5 text-zinc-400 text-xs uppercase tracking-wider">
+                                    <tr>
+                                        <th className="text-left px-3 py-2">Condition</th>
+                                        <th className="text-left px-3 py-2">Wells</th>
+                                        <th className="text-left px-3 py-2">Dilution Factor</th>
+                                        <th className="text-left px-3 py-2">Final Concentration</th>
+                                        <th className="text-left px-3 py-2">Dispensed</th>
+                                        <th className="text-left px-3 py-2">Prepare (+extra/overage)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {analysis.summaries.map((summary) => (
+                                        <tr key={summary.key} className="border-t border-white/5 text-zinc-300">
+                                            <td className="px-3 py-2 font-mono">{summary.label}</td>
+                                            <td className="px-3 py-2 font-mono">{summary.wells}</td>
+                                            <td className="px-3 py-2 font-mono text-indigo-300">{ratioLabel(summary.dilutionFactor)}</td>
+                                            <td className="px-3 py-2 font-mono">{summary.finalDisplay}</td>
+                                            <td className="px-3 py-2 font-mono">{formatVolumeWithAutoMicro(summary.dispensedVolume, perWellVolumeUnit)}</td>
+                                            <td className="px-3 py-2 font-mono">{formatVolumeWithAutoMicro(summary.preparedVolume, perWellVolumeUnit)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
+                ) : (
                     <div className="text-sm text-zinc-500 italic py-6 text-center border border-dashed border-white/10 rounded-xl">
                         Enter values in plate wells to generate condition totals.
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto rounded-xl border border-white/10">
-                        <table className="w-full min-w-[760px] text-sm">
-                            <thead className="bg-white/5 text-zinc-400 text-xs uppercase tracking-wider">
-                                <tr>
-                                    <th className="text-left px-3 py-2">Condition</th>
-                                    <th className="text-left px-3 py-2">Wells</th>
-                                    <th className="text-left px-3 py-2">Dilution Factor</th>
-                                    <th className="text-left px-3 py-2">Final Concentration</th>
-                                    <th className="text-left px-3 py-2">Dispensed</th>
-                                    <th className="text-left px-3 py-2">Prepare (+extra/overage)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {analysis.summaries.map((summary) => (
-                                    <tr key={summary.key} className="border-t border-white/5 text-zinc-300">
-                                        <td className="px-3 py-2 font-mono">{summary.label}</td>
-                                        <td className="px-3 py-2 font-mono">{summary.wells}</td>
-                                        <td className="px-3 py-2 font-mono text-indigo-300">{ratioLabel(summary.dilutionFactor)}</td>
-                                        <td className="px-3 py-2 font-mono">{summary.finalDisplay}</td>
-                                        <td className="px-3 py-2 font-mono">{formatVolumeWithAutoMicro(summary.dispensedVolume, perWellVolumeUnit)}</td>
-                                        <td className="px-3 py-2 font-mono">{formatVolumeWithAutoMicro(summary.preparedVolume, perWellVolumeUnit)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
                     </div>
                 )}
             </section>
@@ -1156,60 +1376,110 @@ export default function PlatePlannerCalculator() {
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        {analysis.summaries.map((summary, index) => (
-                            <div
-                                key={`prep-${summary.key}`}
-                                className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-zinc-200"
-                            >
-                                <p className="font-medium">
-                                    {index + 1}. {summary.label} ({summary.wells} well{summary.wells === 1 ? "" : "s"})
-                                </p>
-                                {!summary.canPrepareFromStart ? (
-                                    <p className="text-amber-300 text-xs mt-1">
-                                        Cannot prepare from start by dilution alone (target is higher than start concentration).
+                        {useSequentialPreparationInstructions ? (
+                            sequentialDilutionInstructions.map((step, index) => (
+                                <div
+                                    key={`prep-seq-${step.key}`}
+                                    className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-zinc-200"
+                                >
+                                    <p className="font-medium">
+                                        {index + 1}. {step.wellId} ({step.label})
                                     </p>
-                                ) : preparationMethod === "direct" ? (
-                                    summary.diluentVolume <= 1e-12 ? (
-                                        <p className="text-zinc-400 text-xs mt-1">
-                                            Use start solution directly: prepare {formatVolumeWithAutoMicro(summary.preparedVolume, perWellVolumeUnit)} (no diluent).
-                                        </p>
-                                    ) : (
-                                        <p className="text-zinc-400 text-xs mt-1">
-                                            Mix {formatVolumeWithAutoMicro(summary.transferFromStart, perWellVolumeUnit)} of start solution + {formatVolumeWithAutoMicro(summary.diluentVolume, perWellVolumeUnit)} diluent to make {formatVolumeWithAutoMicro(summary.preparedVolume, perWellVolumeUnit)} total.
-                                        </p>
-                                    )
-                                ) : (() => {
-                                    const serial = serialInstructionByKey.get(summary.key);
-                                    if (!serial) {
-                                        return (
-                                            <p className="text-amber-300 text-xs mt-1">
-                                                Could not build a serial step for this condition.
+                                    {preparationMethod === "serial" ? (
+                                        <>
+                                            {step.diluentVolume <= 1e-12 ? (
+                                                <p className="text-zinc-400 text-xs mt-1">
+                                                    Use {step.sourceLabel} directly: prepare {formatVolumeWithAutoMicro(step.requiredTotalVolume, perWellVolumeUnit)} total (no diluent).
+                                                </p>
+                                            ) : (
+                                                <p className="text-zinc-400 text-xs mt-1">
+                                                    Mix {formatVolumeWithAutoMicro(step.transferVolume, perWellVolumeUnit)} of {step.sourceLabel} + {formatVolumeWithAutoMicro(step.diluentVolume, perWellVolumeUnit)} diluent to make {formatVolumeWithAutoMicro(step.requiredTotalVolume, perWellVolumeUnit)} total ({ratioLabel(step.stepFactor)} serial step{step.fromStart ? " from start" : ""}).
+                                                </p>
+                                            )}
+                                            <p className="text-zinc-500 text-[11px] mt-1">
+                                                Use {formatVolumeWithAutoMicro(step.dispenseVolume, perWellVolumeUnit)} for well {step.wellId}{step.transferToNext > 1e-12 ? ` and reserve ${formatVolumeWithAutoMicro(step.transferToNext, perWellVolumeUnit)} to prepare the next serial dilution.` : "."}
                                             </p>
-                                        );
-                                    }
-                                    if (serial.diluentVolume <= 1e-12) {
+                                        </>
+                                    ) : (() => {
+                                        const transferFromStart = step.dispenseVolume / Math.max(step.cumulativeFactor, 1e-12);
+                                        const diluentFromStart = Math.max(step.dispenseVolume - transferFromStart, 0);
+                                        if (diluentFromStart <= 1e-12) {
+                                            return (
+                                                <p className="text-zinc-400 text-xs mt-1">
+                                                    Use start solution directly: prepare {formatVolumeWithAutoMicro(step.dispenseVolume, perWellVolumeUnit)} for well {step.wellId}.
+                                                </p>
+                                            );
+                                        }
                                         return (
                                             <p className="text-zinc-400 text-xs mt-1">
-                                                Use {serial.sourceLabel} directly: prepare {formatVolumeWithAutoMicro(serial.requiredTotalVolume, perWellVolumeUnit)} total (no diluent).
+                                                Mix {formatVolumeWithAutoMicro(transferFromStart, perWellVolumeUnit)} of start solution + {formatVolumeWithAutoMicro(diluentFromStart, perWellVolumeUnit)} diluent to make {formatVolumeWithAutoMicro(step.dispenseVolume, perWellVolumeUnit)} total for well {step.wellId} ({ratioLabel(step.cumulativeFactor)} total dilution from start).
                                             </p>
                                         );
-                                    }
-                                    return (
-                                        <p className="text-zinc-400 text-xs mt-1">
-                                            Mix {formatVolumeWithAutoMicro(serial.transferVolume, perWellVolumeUnit)} of {serial.sourceLabel} + {formatVolumeWithAutoMicro(serial.diluentVolume, perWellVolumeUnit)} diluent to make {formatVolumeWithAutoMicro(serial.requiredTotalVolume, perWellVolumeUnit)} total ({ratioLabel(serial.stepFactor)} serial step{serial.fromStart ? " from start" : ""}).
-                                        </p>
-                                    );
-                                })()}
-                                {preparationMethod === "serial" && summary.canPrepareFromStart && (
+                                    })()}
                                     <p className="text-zinc-500 text-[11px] mt-1">
-                                        Use {formatVolumeWithAutoMicro(serialInstructionByKey.get(summary.key)?.dispenseVolume ?? summary.preparedVolume, perWellVolumeUnit)} for this condition{(serialInstructionByKey.get(summary.key)?.transferToNext ?? 0) > 1e-12 ? ` and reserve ${formatVolumeWithAutoMicro(serialInstructionByKey.get(summary.key)?.transferToNext ?? 0, perWellVolumeUnit)} to prepare the next serial dilution.` : "."}
+                                        Final concentration after this step: {step.finalDisplay} (cumulative {ratioLabel(step.cumulativeFactor)}).
                                     </p>
-                                )}
-                                <p className="text-zinc-500 text-[11px] mt-1">
-                                    Dispense {formatVolumeWithAutoMicro(parsePositiveNumber(perWellVolume) ?? 0, perWellVolumeUnit)} per well.
-                                </p>
-                            </div>
-                        ))}
+                                    <p className="text-zinc-500 text-[11px] mt-1">
+                                        Dispense {formatVolumeWithAutoMicro(parsePositiveNumber(perWellVolume) ?? 0, perWellVolumeUnit)} per well.
+                                    </p>
+                                </div>
+                            ))
+                        ) : (
+                            analysis.summaries.map((summary, index) => (
+                                <div
+                                    key={`prep-${summary.key}`}
+                                    className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-zinc-200"
+                                >
+                                    <p className="font-medium">
+                                        {index + 1}. {summary.label} ({summary.wells} well{summary.wells === 1 ? "" : "s"})
+                                    </p>
+                                    {!summary.canPrepareFromStart ? (
+                                        <p className="text-amber-300 text-xs mt-1">
+                                            Cannot prepare from start by dilution alone (target is higher than start concentration).
+                                        </p>
+                                    ) : preparationMethod === "direct" ? (
+                                        summary.diluentVolume <= 1e-12 ? (
+                                            <p className="text-zinc-400 text-xs mt-1">
+                                                Use start solution directly: prepare {formatVolumeWithAutoMicro(summary.preparedVolume, perWellVolumeUnit)} (no diluent).
+                                            </p>
+                                        ) : (
+                                            <p className="text-zinc-400 text-xs mt-1">
+                                                Mix {formatVolumeWithAutoMicro(summary.transferFromStart, perWellVolumeUnit)} of start solution + {formatVolumeWithAutoMicro(summary.diluentVolume, perWellVolumeUnit)} diluent to make {formatVolumeWithAutoMicro(summary.preparedVolume, perWellVolumeUnit)} total.
+                                            </p>
+                                        )
+                                    ) : (() => {
+                                        const serial = serialInstructionByKey.get(summary.key);
+                                        if (!serial) {
+                                            return (
+                                                <p className="text-amber-300 text-xs mt-1">
+                                                    Could not build a serial step for this condition.
+                                                </p>
+                                            );
+                                        }
+                                        if (serial.diluentVolume <= 1e-12) {
+                                            return (
+                                                <p className="text-zinc-400 text-xs mt-1">
+                                                    Use {serial.sourceLabel} directly: prepare {formatVolumeWithAutoMicro(serial.requiredTotalVolume, perWellVolumeUnit)} total (no diluent).
+                                                </p>
+                                            );
+                                        }
+                                        return (
+                                            <p className="text-zinc-400 text-xs mt-1">
+                                                Mix {formatVolumeWithAutoMicro(serial.transferVolume, perWellVolumeUnit)} of {serial.sourceLabel} + {formatVolumeWithAutoMicro(serial.diluentVolume, perWellVolumeUnit)} diluent to make {formatVolumeWithAutoMicro(serial.requiredTotalVolume, perWellVolumeUnit)} total ({ratioLabel(serial.stepFactor)} serial step{serial.fromStart ? " from start" : ""}).
+                                            </p>
+                                        );
+                                    })()}
+                                    {preparationMethod === "serial" && summary.canPrepareFromStart && (
+                                        <p className="text-zinc-500 text-[11px] mt-1">
+                                            Use {formatVolumeWithAutoMicro(serialInstructionByKey.get(summary.key)?.dispenseVolume ?? summary.preparedVolume, perWellVolumeUnit)} for this condition{(serialInstructionByKey.get(summary.key)?.transferToNext ?? 0) > 1e-12 ? ` and reserve ${formatVolumeWithAutoMicro(serialInstructionByKey.get(summary.key)?.transferToNext ?? 0, perWellVolumeUnit)} to prepare the next serial dilution.` : "."}
+                                        </p>
+                                    )}
+                                    <p className="text-zinc-500 text-[11px] mt-1">
+                                        Dispense {formatVolumeWithAutoMicro(parsePositiveNumber(perWellVolume) ?? 0, perWellVolumeUnit)} per well.
+                                    </p>
+                                </div>
+                            ))
+                        )}
 
                         {analysis.blankWells > 0 && (
                             <div className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-zinc-200">

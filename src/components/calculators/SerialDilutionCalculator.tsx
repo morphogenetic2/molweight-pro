@@ -5,6 +5,7 @@ import { AlertCircle, ArrowRightLeft, Copy, Download, ListChecks } from "lucide-
 import { useStore } from "@/store/useStore";
 import { useToastStore } from "@/store/useToastStore";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
+import { parseDilutionFactor } from "@/lib/chemistry/dilution";
 import { MASS_CONC_UNITS, MOLAR_UNITS, PERCENT_UNITS, VOLUME_UNITS, convertUnitValue } from "@/lib/chemistry/units";
 import type { SerialDilutionMode } from "@/store/storeTypes";
 
@@ -59,37 +60,6 @@ function formatNumber(value: number, digits = 6): string {
         return value.toExponential(3);
     }
     return Number.parseFloat(value.toPrecision(digits)).toString();
-}
-
-function parseDilutionFactor(raw: string): number | null {
-    const token = raw
-        .trim()
-        .toLowerCase()
-        .replace(/[×*]/g, "x")
-        .replace(/\s+/g, "");
-    if (!token) return null;
-
-    const simpleMatch = token.match(/^x?(\d*\.?\d+)$/);
-    if (simpleMatch) {
-        const factor = Number.parseFloat(simpleMatch[1]);
-        return factor > 1 ? factor : null;
-    }
-
-    const oneToNMatch = token.match(/^1[:/](\d*\.?\d+)$/);
-    if (oneToNMatch) {
-        const factor = Number.parseFloat(oneToNMatch[1]);
-        return factor > 1 ? factor : null;
-    }
-
-    const ratioMatch = token.match(/^(\d*\.?\d+)[:/](\d*\.?\d+)$/);
-    if (!ratioMatch) return null;
-
-    const left = Number.parseFloat(ratioMatch[1]);
-    const right = Number.parseFloat(ratioMatch[2]);
-    if (left <= 0 || right <= 0 || right <= left) return null;
-
-    const factor = right / left;
-    return factor > 1 ? factor : null;
 }
 
 function splitCustomRatioTokens(raw: string): { tokens: string[]; invalidFragments: string[] } {
