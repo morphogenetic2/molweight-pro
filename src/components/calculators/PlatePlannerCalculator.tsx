@@ -9,6 +9,7 @@ import { useToastStore } from "@/store/useToastStore";
 type PlannerMode = "dilution" | "concentration";
 type FillMode = "column" | "row";
 type FillDirection = "right" | "left" | "down" | "up";
+type PreparationMethod = "direct" | "serial";
 
 interface PlatePreset {
     key: string;
@@ -49,6 +50,18 @@ interface PlateAnalysis {
     blankWells: number;
     blankDispensedVolume: number;
     blankPreparedVolume: number;
+}
+
+interface SerialInstruction {
+    key: string;
+    sourceLabel: string;
+    stepFactor: number;
+    transferVolume: number;
+    diluentVolume: number;
+    fromStart: boolean;
+    dispenseVolume: number;
+    requiredTotalVolume: number;
+    transferToNext: number;
 }
 
 interface Coord {
@@ -125,6 +138,11 @@ function formatVolumeWithAutoMicro(value: number, unit: string): string {
         }
     }
     return `${formatNumber(value)} ${getUnitLabel(unit)}`;
+}
+
+function getWellInputWidthCh(value: string): number {
+    const trimmedLength = value.trim().length;
+    return Math.min(24, Math.max(12, trimmedLength || 12));
 }
 
 function parseDilutionFactor(raw: string): number | null {
@@ -292,6 +310,7 @@ export default function PlatePlannerCalculator() {
 
     const [wellValues, setWellValues] = useState<Record<string, string>>({});
     const [fillFeedback, setFillFeedback] = useState<string | null>(null);
+    const [preparationMethod, setPreparationMethod] = useState<PreparationMethod>("direct");
 
     const plate = PLATE_PRESETS.find((entry) => entry.key === plateKey) ?? PLATE_PRESETS[4];
     const wellIds = useMemo(() => buildWellIds(plate.rows, plate.cols), [plate.rows, plate.cols]);
@@ -530,6 +549,68 @@ export default function PlatePlannerCalculator() {
         stockValue,
         wellValues,
     ]);
+
+    const serialInstructions = useMemo(() => {
+        const eligible = analysis.summaries
+            .filter((summary) => summary.canPrepareFromStart)
+            .sort((a, b) => a.dilutionFactor - b.dilutionFactor);
+
+        const steps: SerialInstruction[] = [];
+        const tolerance = 1e-9;
+        if (eligible.length === 0) return steps;
+
+        const requiredTotals = new Array<number>(eligible.length).fill(0);
+        for (let i = eligible.length - 1; i >= 0; i -= 1) {
+            const current = eligible[i];
+            let required = current.preparedVolume;
+            if (i < eligible.length - 1) {
+                const next = eligible[i + 1];
+                const nextStepFactor = next.dilutionFactor / Math.max(current.dilutionFactor, 1e-12);
+                const transferToNext = requiredTotals[i + 1] / Math.max(nextStepFactor, 1e-12);
+                required += transferToNext;
+            }
+            requiredTotals[i] = required;
+        }
+
+        for (let i = 0; i < eligible.length; i += 1) {
+            const current = eligible[i];
+            const previous = i > 0 ? eligible[i - 1] : null;
+            const sourceLabel = previous ? previous.label : "start solution";
+            const rawStepFactor = previous
+                ? current.dilutionFactor / Math.max(previous.dilutionFactor, 1e-12)
+                : current.dilutionFactor;
+            const stepFactor = Math.max(rawStepFactor, 1);
+            const requiredTotalVolume = requiredTotals[i];
+            const transferVolume =
+                stepFactor <= 1 + tolerance
+                    ? requiredTotalVolume
+                    : requiredTotalVolume / stepFactor;
+            const diluentVolume = Math.max(requiredTotalVolume - transferVolume, 0);
+            const transferToNext =
+                i < eligible.length - 1
+                    ? requiredTotals[i + 1] / Math.max(eligible[i + 1].dilutionFactor / Math.max(current.dilutionFactor, 1e-12), 1e-12)
+                    : 0;
+
+            steps.push({
+                key: current.key,
+                sourceLabel,
+                stepFactor,
+                transferVolume,
+                diluentVolume,
+                fromStart: !previous,
+                dispenseVolume: current.preparedVolume,
+                requiredTotalVolume,
+                transferToNext,
+            });
+        }
+
+        return steps;
+    }, [analysis.summaries]);
+
+    const serialInstructionByKey = useMemo(
+        () => new Map(serialInstructions.map((step) => [step.key, step])),
+        [serialInstructions]
+    );
 
     const handleConcentrationUnitChange = (
         field: "stock" | "start",
@@ -970,7 +1051,7 @@ export default function PlatePlannerCalculator() {
                 <div className="overflow-x-auto rounded-xl border border-white/10 p-3">
                     <div
                         className="grid gap-1.5 min-w-max"
-                        style={{ gridTemplateColumns: `repeat(${plate.cols}, minmax(88px, 1fr))` }}
+                        style={{ gridTemplateColumns: `repeat(${plate.cols}, minmax(72px, 1fr))` }}
                     >
                         {wellIds.map((wellId) => (
                             <div key={wellId} className="rounded-lg border border-white/10 bg-white/[0.02] p-1.5 space-y-1">
@@ -978,6 +1059,7 @@ export default function PlatePlannerCalculator() {
                                 {(() => {
                                     const rawValue = wellValues[wellId] ?? "";
                                     const blankDisplay = isCanonicalBlank(rawValue);
+                                    const inputWidthCh = getWellInputWidthCh(rawValue);
                                     return (
                                 <input
                                     value={rawValue}
@@ -986,9 +1068,10 @@ export default function PlatePlannerCalculator() {
                                     }
                                     onBlur={() => handleWellBlur(wellId)}
                                     placeholder={mode === "dilution" ? "1:2" : `10 ${getUnitLabel(startUnit)}`}
-                                    className={`w-full bg-transparent border border-white/10 rounded px-1.5 py-1 text-[11px] outline-none focus:border-indigo-500/40 font-mono ${
+                                    className={`max-w-full bg-transparent border border-white/10 rounded px-1.5 py-1 text-[11px] outline-none focus:border-indigo-500/40 font-mono placeholder:text-zinc-700 placeholder:opacity-25 ${
                                         blankDisplay ? "text-zinc-300 tracking-wide [font-variant:small-caps]" : "text-white"
                                     }`}
+                                    style={{ width: `${inputWidthCh}ch` }}
                                 />
                                     );
                                 })()}
@@ -1041,7 +1124,31 @@ export default function PlatePlannerCalculator() {
             </section>
 
             <section className="glass-card p-4 sm:p-6 space-y-4">
-                <h3 className="text-sm sm:text-base font-bold text-zinc-200">Preparation Instructions</h3>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-sm sm:text-base font-bold text-zinc-200">Preparation Instructions</h3>
+                    <div className="flex items-center gap-2 p-1 rounded-xl bg-white/5 border border-white/10 w-fit">
+                        <button
+                            onClick={() => setPreparationMethod("direct")}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                preparationMethod === "direct"
+                                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                                    : "text-zinc-400 hover:text-zinc-200"
+                            }`}
+                        >
+                            Direct
+                        </button>
+                        <button
+                            onClick={() => setPreparationMethod("serial")}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                preparationMethod === "serial"
+                                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                                    : "text-zinc-400 hover:text-zinc-200"
+                            }`}
+                        >
+                            Serial
+                        </button>
+                    </div>
+                </div>
 
                 {analysis.summaries.length === 0 && analysis.blankWells === 0 ? (
                     <div className="text-sm text-zinc-500 italic py-6 text-center border border-dashed border-white/10 rounded-xl">
@@ -1057,7 +1164,11 @@ export default function PlatePlannerCalculator() {
                                 <p className="font-medium">
                                     {index + 1}. {summary.label} ({summary.wells} well{summary.wells === 1 ? "" : "s"})
                                 </p>
-                                {summary.canPrepareFromStart ? (
+                                {!summary.canPrepareFromStart ? (
+                                    <p className="text-amber-300 text-xs mt-1">
+                                        Cannot prepare from start by dilution alone (target is higher than start concentration).
+                                    </p>
+                                ) : preparationMethod === "direct" ? (
                                     summary.diluentVolume <= 1e-12 ? (
                                         <p className="text-zinc-400 text-xs mt-1">
                                             Use start solution directly: prepare {formatVolumeWithAutoMicro(summary.preparedVolume, perWellVolumeUnit)} (no diluent).
@@ -1067,9 +1178,31 @@ export default function PlatePlannerCalculator() {
                                             Mix {formatVolumeWithAutoMicro(summary.transferFromStart, perWellVolumeUnit)} of start solution + {formatVolumeWithAutoMicro(summary.diluentVolume, perWellVolumeUnit)} diluent to make {formatVolumeWithAutoMicro(summary.preparedVolume, perWellVolumeUnit)} total.
                                         </p>
                                     )
-                                ) : (
-                                    <p className="text-amber-300 text-xs mt-1">
-                                        Cannot prepare from start by dilution alone (target is higher than start concentration).
+                                ) : (() => {
+                                    const serial = serialInstructionByKey.get(summary.key);
+                                    if (!serial) {
+                                        return (
+                                            <p className="text-amber-300 text-xs mt-1">
+                                                Could not build a serial step for this condition.
+                                            </p>
+                                        );
+                                    }
+                                    if (serial.diluentVolume <= 1e-12) {
+                                        return (
+                                            <p className="text-zinc-400 text-xs mt-1">
+                                                Use {serial.sourceLabel} directly: prepare {formatVolumeWithAutoMicro(serial.requiredTotalVolume, perWellVolumeUnit)} total (no diluent).
+                                            </p>
+                                        );
+                                    }
+                                    return (
+                                        <p className="text-zinc-400 text-xs mt-1">
+                                            Mix {formatVolumeWithAutoMicro(serial.transferVolume, perWellVolumeUnit)} of {serial.sourceLabel} + {formatVolumeWithAutoMicro(serial.diluentVolume, perWellVolumeUnit)} diluent to make {formatVolumeWithAutoMicro(serial.requiredTotalVolume, perWellVolumeUnit)} total ({ratioLabel(serial.stepFactor)} serial step{serial.fromStart ? " from start" : ""}).
+                                        </p>
+                                    );
+                                })()}
+                                {preparationMethod === "serial" && summary.canPrepareFromStart && (
+                                    <p className="text-zinc-500 text-[11px] mt-1">
+                                        Use {formatVolumeWithAutoMicro(serialInstructionByKey.get(summary.key)?.dispenseVolume ?? summary.preparedVolume, perWellVolumeUnit)} for this condition{(serialInstructionByKey.get(summary.key)?.transferToNext ?? 0) > 1e-12 ? ` and reserve ${formatVolumeWithAutoMicro(serialInstructionByKey.get(summary.key)?.transferToNext ?? 0, perWellVolumeUnit)} to prepare the next serial dilution.` : "."}
                                     </p>
                                 )}
                                 <p className="text-zinc-500 text-[11px] mt-1">
