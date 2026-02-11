@@ -9,20 +9,52 @@
 
 import { ChemicalData, parseFormula, areCompositionsEqual, normalizeFormula, generateHillFormula } from "./parser";
 
+interface PubChemProperty {
+    MolecularFormula: string;
+    MolecularWeight: string;
+    IUPACName?: string;
+    CanonicalSMILES?: string;
+    IsomericSMILES?: string;
+    SMILES?: string;
+}
+
+interface PubChemPropertyResult extends PubChemProperty {
+    smiles: string | null;
+}
+
+type CidSearchResponse = {
+    IdentifierList?: {
+        CID?: number[];
+    };
+};
+
+type SynonymsResponse = {
+    InformationList?: {
+        Information?: Array<{
+            Synonym?: string[];
+        }>;
+    };
+};
+
 /**
  * Fetches molecular properties for a given CID.
  * 
  * @async
  * @param {number} cid - PubChem Compound ID
- * @returns {Promise<any | null>} Properties object or null
+ * @returns {Promise<PubChemPropertyResult | null>} Properties object or null
  */
-async function fetchProperties(cid: number): Promise<any> {
+async function fetchProperties(cid: number): Promise<PubChemPropertyResult | null> {
     const propRes = await fetch(
         `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,IUPACName,CanonicalSMILES,IsomericSMILES/JSON`
     );
     if (!propRes.ok) return null;
-    const data = await propRes.json();
-    const prop = data.PropertyTable.Properties[0];
+    const data = (await propRes.json()) as {
+        PropertyTable?: {
+            Properties?: PubChemProperty[];
+        };
+    };
+    const prop = data.PropertyTable?.Properties?.[0];
+    if (!prop) return null;
     
     // PubChem usually provides both, but fallback just in case
     const smiles = prop.IsomericSMILES || prop.CanonicalSMILES || prop.SMILES;
@@ -50,7 +82,7 @@ export async function lookupPubChemByFormula(formula: string): Promise<{cid: num
         try {
             const comp = parseFormula(formula);
             searchFormula = generateHillFormula(comp);
-        } catch (e) {
+        } catch {
             // Fall back to original formula if parsing fails
         }
         
@@ -62,9 +94,9 @@ export async function lookupPubChemByFormula(formula: string): Promise<{cid: num
         );
 
         if (!searchRes.ok) return null;
-        const searchData = await searchRes.json();
+        const searchData = (await searchRes.json()) as CidSearchResponse;
 
-        if (!searchData?.IdentifierList?.CID || searchData.IdentifierList.CID.length === 0) {
+        if (!searchData.IdentifierList?.CID || searchData.IdentifierList.CID.length === 0) {
             return null;
         }
 
@@ -104,8 +136,9 @@ export async function lookupPubChem(query: string): Promise<Partial<ChemicalData
         );
 
         if (!searchRes.ok) return null;
-        const searchData = await searchRes.json();
-        const cid = searchData.IdentifierList.CID[0];
+        const searchData = (await searchRes.json()) as CidSearchResponse;
+        const cid = searchData.IdentifierList?.CID?.[0];
+        if (!cid) return null;
 
         // Step 2: Fetch molecular properties
         const prop = await fetchProperties(cid);
@@ -115,7 +148,8 @@ export async function lookupPubChem(query: string): Promise<Partial<ChemicalData
         const synRes = await fetch(
             `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/synonyms/JSON`
         );
-        const synonyms: string[] = synRes.ok ? (await synRes.json()).InformationList.Information[0].Synonym : [];
+        const synonymsData = synRes.ok ? ((await synRes.json()) as SynonymsResponse) : undefined;
+        const synonyms: string[] = synonymsData?.InformationList?.Information?.[0]?.Synonym ?? [];
 
         // Step 4: Identify the best formula
         let bestFormula = prop.MolecularFormula;
@@ -151,7 +185,7 @@ export async function lookupPubChem(query: string): Promise<Partial<ChemicalData
 
         return {
             cid,
-            mw: Number(parseFloat(prop.MolecularWeight).toFixed(2)),
+            mw: Number.parseFloat(Number.parseFloat(prop.MolecularWeight).toFixed(2)),
             formula: normalizeFormula(bestFormula, false),
             name: prop.IUPACName,
             smiles: prop.smiles || undefined,

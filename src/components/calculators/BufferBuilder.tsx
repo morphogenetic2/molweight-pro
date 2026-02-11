@@ -6,7 +6,7 @@ import type { Solute } from "@/store/storeTypes";
 import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker, Printer } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel, tryCalculateMw } from "@/lib/parser";
-import { parseValueWithUnit } from "@/lib/chemistry/units";
+import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
 import { lookupPubChem } from "@/lib/api";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import jsPDF from "jspdf";
@@ -144,6 +144,22 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
         window.open(url, "_blank");
     };
 
+    const handleUnitSelectChange = (nextUnit: string) => {
+        const concNum = parseFloat(String(solute.conc));
+        const mw = parseFloat(String(solute.mw));
+        const converted = Number.isFinite(concNum)
+            ? convertUnitValue(concNum, solute.unit, nextUnit, Number.isFinite(mw) ? mw : undefined)
+            : null;
+
+        if (converted === null) {
+            updateSolute(solute.id, { unit: nextUnit });
+            return;
+        }
+
+        const normalized = parseFloat(converted.toPrecision(8));
+        updateSolute(solute.id, { conc: normalized.toString(), unit: nextUnit });
+    };
+
     if (view === 'table') {
         return (
             <tr className="hidden sm:table-row group hover:bg-white/[0.02] transition-colors">
@@ -258,7 +274,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                                 />
                                 <select
                                     value={solute.unit}
-                                    onChange={(e) => updateSolute(solute.id, { unit: e.target.value })}
+                                    onChange={(e) => handleUnitSelectChange(e.target.value)}
                                     className="bg-transparent border-transparent p-0 focus:ring-0 text-xs text-zinc-400 min-w-[90px]"
                                 >
                                     <option value="M">M</option>
@@ -385,7 +401,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                         />
                         <select
                             value={solute.unit}
-                            onChange={(e) => updateSolute(solute.id, { unit: e.target.value })}
+                            onChange={(e) => handleUnitSelectChange(e.target.value)}
                             className="bg-transparent text-[10px] text-zinc-400 p-0 border-none"
                         >
                             <option value="M">M</option>
@@ -584,7 +600,18 @@ export default function BufferBuilder() {
                         />
                         <select
                             value={bufferUnit}
-                            onChange={(e) => setBufferUnit(e.target.value)}
+                            onChange={(e) => {
+                                const nextUnit = e.target.value;
+                                const volumeNum = parseFloat(bufferVolume);
+                                if (Number.isFinite(volumeNum)) {
+                                    const converted = convertUnitValue(volumeNum, bufferUnit, nextUnit);
+                                    if (converted !== null) {
+                                        const normalized = parseFloat(converted.toPrecision(8));
+                                        setBufferVolume(normalized.toString());
+                                    }
+                                }
+                                setBufferUnit(nextUnit);
+                            }}
                             className="w-20 sm:w-24 text-sm"
                         >
                             <option>mL</option>

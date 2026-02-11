@@ -7,7 +7,7 @@ import { lookupPubChem } from "@/lib/api";
 import { tryCalculateMw } from "@/lib/parser";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { Solver, denormalize } from "@/lib/chemistry/converter";
-import { MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS } from "@/lib/chemistry/units";
+import { MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS, convertUnitValue } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "../ui/ValueUnitInput";
 import type { MolarityState } from "@/store/storeTypes";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -152,7 +152,72 @@ export default function MolarityCalculator() {
     }, [molarityState, setMolarityState]);
 
     const update = (field: keyof MolarityState, val: string) => setMolarityState({ [field]: val } as Partial<MolarityState>);
-    const updateUnit = (field: keyof MolarityState, val: string) => setMolarityState({ [field]: val } as Partial<MolarityState>);
+    const updateUnit = (
+        field: "massUnit" | "volUnit" | "concUnit",
+        val: string,
+        source: "select" | "parsed"
+    ) => {
+        if (source === "parsed") {
+            setMolarityState({ [field]: val } as Partial<MolarityState>);
+            return;
+        }
+
+        if (field === "massUnit") {
+            const mass = parseFloat(molarityState.mass);
+            const converted = Number.isFinite(mass)
+                ? convertUnitValue(mass, molarityState.massUnit, val)
+                : null;
+
+            if (converted === null) {
+                setMolarityState({ massUnit: val });
+                return;
+            }
+
+            setMolarityState({
+                mass: parseFloat(converted.toPrecision(8)).toString(),
+                massUnit: val
+            });
+            return;
+        }
+
+        if (field === "volUnit") {
+            const volume = parseFloat(molarityState.volume);
+            const converted = Number.isFinite(volume)
+                ? convertUnitValue(volume, molarityState.volUnit, val)
+                : null;
+
+            if (converted === null) {
+                setMolarityState({ volUnit: val });
+                return;
+            }
+
+            setMolarityState({
+                volume: parseFloat(converted.toPrecision(8)).toString(),
+                volUnit: val
+            });
+            return;
+        }
+
+        const concentration = parseFloat(molarityState.concentration);
+        const converted = Number.isFinite(concentration)
+            ? convertUnitValue(
+                concentration,
+                molarityState.concUnit,
+                val,
+                molarityState.mw > 0 ? molarityState.mw : undefined
+            )
+            : null;
+
+        if (converted === null) {
+            setMolarityState({ concUnit: val });
+            return;
+        }
+
+        setMolarityState({
+            concentration: parseFloat(converted.toPrecision(8)).toString(),
+            concUnit: val
+        });
+    };
 
     const isTarget = (t: MolarityState["target"]) => molarityState.target === t;
 
@@ -243,7 +308,7 @@ export default function MolarityCalculator() {
                                 value={molarityState.mass}
                                 unit={molarityState.massUnit}
                                 onValueChange={(v) => update('mass', v)}
-                                onUnitChange={(u) => updateUnit('massUnit', u)}
+                                onUnitChange={(u, source) => updateUnit('massUnit', u, source)}
                                 options={MASS_OPTS}
                                 readOnlyInput={isTarget('mass')}
                                 inputClassName={isTarget('mass') ? 'text-emerald-400 font-bold' : ''}
@@ -272,7 +337,7 @@ export default function MolarityCalculator() {
                                 value={molarityState.concentration}
                                 unit={molarityState.concUnit}
                                 onValueChange={(v) => update('concentration', v)}
-                                onUnitChange={(u) => updateUnit('concUnit', u)}
+                                onUnitChange={(u, source) => updateUnit('concUnit', u, source)}
                                 options={CONC_OPTS}
                                 readOnlyInput={isTarget('concentration')}
                                 inputClassName={isTarget('concentration') ? 'text-emerald-400 font-bold' : ''}
@@ -297,7 +362,7 @@ export default function MolarityCalculator() {
                                 value={molarityState.volume}
                                 unit={molarityState.volUnit}
                                 onValueChange={(v) => update('volume', v)}
-                                onUnitChange={(u) => updateUnit('volUnit', u)}
+                                onUnitChange={(u, source) => updateUnit('volUnit', u, source)}
                                 options={VOL_OPTS}
                                 readOnlyInput={isTarget('volume')}
                                 inputClassName={isTarget('volume') ? 'text-emerald-400 font-bold' : ''}

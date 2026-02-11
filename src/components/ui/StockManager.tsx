@@ -7,7 +7,7 @@ import { Plus, Trash2, FileSpreadsheet, Save, AlertTriangle } from "lucide-react
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { motion, AnimatePresence } from "framer-motion";
-import { parseValueWithUnit } from "@/lib/chemistry/units";
+import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -31,6 +31,49 @@ export function StockManager() {
     // Formula preview state
     const debouncedName = useDebounce(newName, 500);
     const livePreview = tryCalculateMw(debouncedName);
+    const handleNewConcUnitChange = (unit: string, source: "select" | "parsed") => {
+        if (source === "parsed") {
+            setNewUnit(unit);
+            return;
+        }
+
+        const current = parseFloat(newConc);
+        if (!Number.isFinite(current)) {
+            setNewUnit(unit);
+            return;
+        }
+
+        const converted = convertUnitValue(
+            current,
+            newUnit,
+            unit,
+            livePreview?.mw && livePreview.mw > 0 ? livePreview.mw : undefined
+        );
+
+        if (converted !== null) {
+            setNewConc(parseFloat(converted.toPrecision(8)).toString());
+        }
+        setNewUnit(unit);
+    };
+
+    const handleNewVolUnitChange = (unit: string, source: "select" | "parsed") => {
+        if (source === "parsed") {
+            setNewVolUnit(unit);
+            return;
+        }
+
+        const current = parseFloat(newVol);
+        if (!Number.isFinite(current)) {
+            setNewVolUnit(unit);
+            return;
+        }
+
+        const converted = convertUnitValue(current, newVolUnit, unit);
+        if (converted !== null) {
+            setNewVol(parseFloat(converted.toPrecision(8)).toString());
+        }
+        setNewVolUnit(unit);
+    };
 
     const saveStock = (mw: number, formula: string) => {
         const concParsed = parseValueWithUnit(newConc, ["M", "mM", "μM", "mg/mL", "g/L", "pct"]);
@@ -204,7 +247,7 @@ export function StockManager() {
                                             unit={newUnit}
                                             options={["M", "mM", "μM", "mg/mL", "g/L", "pct"]}
                                             onValueChange={(raw) => setNewConc(raw)}
-                                            onUnitChange={(unit) => setNewUnit(unit)}
+                                            onUnitChange={handleNewConcUnitChange}
                                             inputClassName="text-sm"
                                             selectClassName="min-w-[3rem]"
                                             wrapperClassName="bg-black/20 rounded-xl border border-white/10 px-4 py-2.5"
@@ -219,7 +262,7 @@ export function StockManager() {
                                             unit={newVolUnit}
                                             options={["mL", "L", "μL"]}
                                             onValueChange={(raw) => setNewVol(raw)}
-                                            onUnitChange={(unit) => setNewVolUnit(unit)}
+                                            onUnitChange={handleNewVolUnitChange}
                                             inputClassName="text-sm"
                                             selectClassName="min-w-[3rem]"
                                             wrapperClassName="bg-black/20 rounded-xl border border-white/10 px-4 py-2.5"

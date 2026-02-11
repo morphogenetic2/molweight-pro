@@ -68,6 +68,87 @@ export function getUnitType(unit: string): UnitType | 'unknown' {
     return 'unknown';
 }
 
+/**
+ * Convert a numeric value between supported units.
+ *
+ * Supports:
+ * - Same-domain conversions (mass, volume, molar, mass_conc, percent)
+ * - Cross-domain concentration conversions between molar <-> mass_conc <-> percent
+ *   (requires `mw` for conversions that involve molarity).
+ *
+ * Returns `null` when conversion is not possible.
+ */
+export function convertUnitValue(
+    value: number,
+    fromUnit: string,
+    toUnit: string,
+    mw?: number
+): number | null {
+    if (!Number.isFinite(value)) return null;
+    if (fromUnit === toUnit) return value;
+
+    const fromType = getUnitType(fromUnit);
+    const toType = getUnitType(toUnit);
+
+    if (fromType === "unknown" || toType === "unknown") {
+        return null;
+    }
+
+    // Same-domain conversion is direct normalize -> denormalize.
+    if (fromType === toType) {
+        const fromCfg = ALL_UNITS[fromUnit];
+        const toCfg = ALL_UNITS[toUnit];
+        if (!fromCfg || !toCfg) return null;
+        const base = value * fromCfg.factor;
+        return base / toCfg.factor;
+    }
+
+    const isConc = (t: UnitType | "unknown") =>
+        t === "molar" || t === "mass_conc" || t === "percent";
+
+    if (!isConc(fromType) || !isConc(toType)) {
+        return null;
+    }
+
+    const fromCfg = ALL_UNITS[fromUnit];
+    const toCfg = ALL_UNITS[toUnit];
+    if (!fromCfg || !toCfg) return null;
+
+    // Intermediate base for concentration conversions: g/L.
+    let gPerL: number | null = null;
+    if (fromType === "mass_conc") {
+        gPerL = value * fromCfg.factor;
+    } else if (fromType === "percent") {
+        const ratio = value * fromCfg.factor;
+        gPerL = ratio * 1000;
+    } else if (fromType === "molar") {
+        if (!mw || mw <= 0) return null;
+        const molar = value * fromCfg.factor;
+        gPerL = molar * mw;
+    }
+
+    if (gPerL === null || !Number.isFinite(gPerL)) {
+        return null;
+    }
+
+    if (toType === "mass_conc") {
+        return gPerL / toCfg.factor;
+    }
+
+    if (toType === "percent") {
+        const ratio = gPerL / 1000;
+        return ratio / toCfg.factor;
+    }
+
+    if (toType === "molar") {
+        if (!mw || mw <= 0) return null;
+        const molar = gPerL / mw;
+        return molar / toCfg.factor;
+    }
+
+    return null;
+}
+
 const normalizeUnitKey = (unit: string): string =>
     unit
         .trim()

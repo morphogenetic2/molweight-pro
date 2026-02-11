@@ -6,7 +6,7 @@ import type { AdjustmentStock } from "@/store/storeTypes";
 import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings2, Save } from "lucide-react";
 import { formatMass, formatVolume } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
-import { parseValueWithUnit } from "@/lib/chemistry/units";
+import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
 
@@ -150,6 +150,11 @@ export default function BufferCalculator() {
     // Export State
     const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
     const { solutes, clearSolutes, addSolute, setBufferVolume, setBufferUnit, setActiveTab } = useStore();
+    const formatExportConcentration = (valueM: number): string => {
+        const converted = concUnit === "mM" ? valueM * 1000 : valueM;
+        const decimals = concUnit === "mM" ? 2 : 4;
+        return converted.toFixed(decimals);
+    };
 
     const performExport = () => {
         if (!result) return;
@@ -183,20 +188,9 @@ export default function BufferCalculator() {
                     name: comp.name,
                     formula: comp.formula,
                     mw: mw.toFixed(2),
-                    conc: (concM * 1000).toFixed(2), // store as mM by default? Or let's store as M if > 0.1? Let's verify units.
-                    // The App default is usually M. Let's convert to reasonable unit?
-                    // Let's stick to M for consistency or mM if small.
-                    // Let's use mM if < 0.1M
-                    unit: concM < 0.1 ? "mM" : "M",
-                    concentration: concM < 0.1 ? (concM * 1000).toFixed(2) : concM.toFixed(4)
+                    conc: formatExportConcentration(concM),
+                    unit: concUnit
                 });
-                
-                // Fix: `addSolute` implementation takes raw values.
-                // The `addSolute` in store takes `initialData`.
-                // We need to pass `conc` (the value) and `unit`.
-                // My logic above:
-                // if mM: val = concM * 1000
-                // if M: val = concM
             });
         } else if (result.type === "titration" && result.start && result.adjuster) {
             // Start Component
@@ -211,8 +205,8 @@ export default function BufferCalculator() {
                 name: startComp.name,
                 formula: startComp.formula,
                 mw: mw.toFixed(2),
-                conc: concM < 0.1 ? (concM * 1000).toFixed(2) : concM.toFixed(4),
-                unit: concM < 0.1 ? "mM" : "M"
+                conc: formatExportConcentration(concM),
+                unit: concUnit
             });
 
             // Adjuster
@@ -232,8 +226,8 @@ export default function BufferCalculator() {
                     isStock: true,
                     stockConc: (stock.concM ?? 0).toString(),
                     stockUnit: "M", // Stocks in calculator are M
-                    conc: m2 < 0.1 ? (m2 * 1000).toFixed(2) : m2.toFixed(4),
-                    unit: m2 < 0.1 ? "mM" : "M",
+                    conc: formatExportConcentration(m2),
+                    unit: concUnit,
                     mw: "0", // Unknown MW for generic stock usually? Or we could assume HCl/NaOH. 
                     // Stock config doesn't have MW.
                     formula: ""
@@ -411,7 +405,20 @@ export default function BufferCalculator() {
                                     const num = parseFloat(parsed.value);
                                     if (Number.isFinite(num)) setTotalConc(num);
                                 }}
-                                onUnitChange={(unit) => setConcUnit(unit as "M" | "mM")}
+                                onUnitChange={(unit, source) => {
+                                    const nextUnit = unit as "M" | "mM";
+                                    if (source === "parsed") {
+                                        setConcUnit(nextUnit);
+                                        return;
+                                    }
+
+                                    const converted = convertUnitValue(totalConc, concUnit, nextUnit);
+                                    if (converted !== null) {
+                                        setTotalConc(converted);
+                                        setTotalConcInput(converted.toString());
+                                    }
+                                    setConcUnit(nextUnit);
+                                }}
                                 inputClassName="text-sm"
                                 selectClassName="min-w-[3rem]"
                                 wrapperClassName="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5"
@@ -436,7 +443,20 @@ export default function BufferCalculator() {
                                     const num = parseFloat(parsed.value);
                                     if (Number.isFinite(num)) setTotalVol(num);
                                 }}
-                                onUnitChange={(unit) => setVolUnit(unit as "L" | "mL")}
+                                onUnitChange={(unit, source) => {
+                                    const nextUnit = unit as "L" | "mL";
+                                    if (source === "parsed") {
+                                        setVolUnit(nextUnit);
+                                        return;
+                                    }
+
+                                    const converted = convertUnitValue(totalVol, volUnit, nextUnit);
+                                    if (converted !== null) {
+                                        setTotalVol(converted);
+                                        setTotalVolInput(converted.toString());
+                                    }
+                                    setVolUnit(nextUnit);
+                                }}
                                 inputClassName="text-sm"
                                 selectClassName="min-w-[3rem]"
                                 wrapperClassName="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5"

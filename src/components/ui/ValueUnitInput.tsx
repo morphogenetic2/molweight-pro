@@ -2,11 +2,13 @@
 
 import { getUnitLabel, parseValueWithUnit } from "@/lib/chemistry/units";
 
+type UnitChangeSource = "select" | "parsed";
+
 interface ValueUnitInputProps {
     value: string | number;
     unit: string;
     onValueChange: (val: string) => void;
-    onUnitChange: (unit: string) => void;
+    onUnitChange: (unit: string, source: UnitChangeSource) => void;
     options: string[]; // List of unit keys
     isOptionDisabled?: (unit: string) => boolean;
     label?: string;
@@ -48,14 +50,14 @@ export function ValueUnitInput({
                         const parsed = parseValueWithUnit(raw, options);
                         onValueChange(raw);
                         if (parsed.unit && parsed.unit !== unit) {
-                            onUnitChange(parsed.unit);
+                            onUnitChange(parsed.unit, "parsed");
                         }
                     }}
                     onBlur={(e) => {
                         const raw = e.target.value;
                         const parsed = parseValueWithUnit(raw, options);
                         if (parsed.unit && parsed.unit !== unit) {
-                            onUnitChange(parsed.unit);
+                            onUnitChange(parsed.unit, "parsed");
                         }
                         if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
                             onValueChange(parsed.value);
@@ -70,7 +72,7 @@ export function ValueUnitInput({
 
                 <select
                     value={unit}
-                    onChange={(e) => onUnitChange(e.target.value)}
+                    onChange={(e) => onUnitChange(e.target.value, "select")}
                     disabled={disabled}
                     className={`bg-transparent border-none text-sm text-zinc-500 focus:ring-0 cursor-pointer hover:text-zinc-300 min-w-[3rem] text-right ${selectClassName}`}
                 >

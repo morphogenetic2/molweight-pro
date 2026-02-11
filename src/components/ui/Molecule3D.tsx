@@ -7,15 +7,45 @@ interface Molecule3DProps {
     cid: number;
 }
 
+type ViewerStyleSpec = {
+    stick?: {
+        radius?: number;
+        colorscheme?: string;
+    };
+    sphere?: {
+        scale?: number;
+    };
+};
+
+interface ThreeDmolViewer {
+    clear: () => void;
+    setBackgroundColor: (hex: number, alpha?: number) => void;
+    addModel: (model: string, format: string) => void;
+    setStyle: (selector: Record<string, unknown>, style: ViewerStyleSpec) => void;
+    zoomTo: () => void;
+    render: () => void;
+    animate: (options: { loop?: string; step?: number }) => void;
+}
+
+interface ThreeDmolGlobal {
+    createViewer: (element: HTMLElement) => ThreeDmolViewer;
+}
+
+declare global {
+    interface Window {
+        $3Dmol?: ThreeDmolGlobal;
+    }
+}
+
 export default function Molecule3D({ cid }: Molecule3DProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const viewerRef = useRef<any>(null);
+    const viewerRef = useRef<ThreeDmolViewer | null>(null);
     const [loading, setLoading] = useState(true);
     const [libLoaded, setLibLoaded] = useState(false);
 
     // Load 3Dmol.js script
     useEffect(() => {
-        if ((window as any).$3Dmol) {
+        if (window.$3Dmol) {
             setLibLoaded(true);
             return;
         }
@@ -47,7 +77,10 @@ export default function Molecule3D({ cid }: Molecule3DProps) {
                 if (viewerRef.current) {
                     viewerRef.current.clear();
                 } else {
-                    viewerRef.current = (window as any).$3Dmol.createViewer(containerRef.current);
+                    if (!window.$3Dmol) {
+                        throw new Error("3Dmol library is not available.");
+                    }
+                    viewerRef.current = window.$3Dmol.createViewer(containerRef.current);
                 }
 
                 const v = viewerRef.current;

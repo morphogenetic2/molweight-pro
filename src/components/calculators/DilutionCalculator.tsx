@@ -1,6 +1,6 @@
 import { useStore } from "@/store/useStore";
 import { formatVolume, formatConcentration, getUnitLabel, tryCalculateMw } from "@/lib/parser";
-import { parseValueWithUnit } from "@/lib/chemistry/units";
+import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "lucide-react";
 import { lookupPubChem } from "@/lib/api";
@@ -207,6 +207,83 @@ export default function DilutionCalculator() {
     };
 
     const results = calculateDilution();
+    const handleC1UnitChange = (unit: string, source: "select" | "parsed") => {
+        if (source === "parsed") {
+            setDilution({ u1: unit });
+            return;
+        }
+
+        const current = parseFloat(dilution.c1);
+        if (!Number.isFinite(current)) {
+            setDilution({ u1: unit });
+            return;
+        }
+
+        const converted = convertUnitValue(
+            current,
+            dilution.u1,
+            unit,
+            dilution.mw > 0 ? dilution.mw : undefined
+        );
+
+        if (converted === null) {
+            setDilution({ u1: unit });
+            return;
+        }
+
+        const normalized = parseFloat(converted.toPrecision(8)).toString();
+        setDilution({ c1: normalized, u1: unit });
+    };
+
+    const handleC2UnitChange = (unit: string, source: "select" | "parsed") => {
+        if (source === "parsed") {
+            setDilution({ u2: unit });
+            return;
+        }
+
+        const current = parseFloat(dilution.c2);
+        if (!Number.isFinite(current)) {
+            setDilution({ u2: unit });
+            return;
+        }
+
+        const converted = convertUnitValue(
+            current,
+            dilution.u2,
+            unit,
+            dilution.mw > 0 ? dilution.mw : undefined
+        );
+
+        if (converted === null) {
+            setDilution({ u2: unit });
+            return;
+        }
+
+        const normalized = parseFloat(converted.toPrecision(8)).toString();
+        setDilution({ c2: normalized, u2: unit });
+    };
+
+    const handleV2UnitChange = (unit: string, source: "select" | "parsed") => {
+        if (source === "parsed") {
+            setDilution({ vu2: unit });
+            return;
+        }
+
+        const current = parseFloat(dilution.v2);
+        if (!Number.isFinite(current)) {
+            setDilution({ vu2: unit });
+            return;
+        }
+
+        const converted = convertUnitValue(current, dilution.vu2, unit);
+        if (converted === null) {
+            setDilution({ vu2: unit });
+            return;
+        }
+
+        const normalized = parseFloat(converted.toPrecision(8)).toString();
+        setDilution({ v2: normalized, vu2: unit });
+    };
 
     return (
         <div className="max-w-4xl mx-auto space-y-4 sm:space-y-8 pb-10">
@@ -342,7 +419,7 @@ export default function DilutionCalculator() {
                                 unit={dilution.u1}
                                 options={["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]}
                                 onValueChange={(raw) => setDilution({ c1: raw })}
-                                onUnitChange={(unit) => setDilution({ u1: unit })}
+                                onUnitChange={handleC1UnitChange}
                                 className="flex-1"
                                 inputClassName="text-sm"
                                 selectClassName="w-24 sm:w-32 text-xs sm:text-sm"
@@ -366,7 +443,7 @@ export default function DilutionCalculator() {
                                 unit={dilution.u2}
                                 options={["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]}
                                 onValueChange={(raw) => setDilution({ c2: raw })}
-                                onUnitChange={(unit) => setDilution({ u2: unit })}
+                                onUnitChange={handleC2UnitChange}
                                 isOptionDisabled={(opt) => {
                                     if (isMolar(opt)) {
                                         return (!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1);
@@ -390,7 +467,7 @@ export default function DilutionCalculator() {
                                 unit={dilution.vu2}
                                 options={["mL", "μL", "L"]}
                                 onValueChange={(raw) => setDilution({ v2: raw })}
-                                onUnitChange={(unit) => setDilution({ vu2: unit })}
+                                onUnitChange={handleV2UnitChange}
                                 className="flex-1"
                                 inputClassName="text-sm"
                                 selectClassName="w-20 sm:w-24 text-xs sm:text-sm"
