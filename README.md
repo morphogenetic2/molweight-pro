@@ -201,6 +201,8 @@ git push origin feat/your-feature-name
 
 ## License
 
+Public Domain.
+
 This project is open source and available for personal and educational use.
 
 ---
@@ -210,9 +212,17 @@ This project is open source and available for personal and educational use.
 - **PubChem** for providing free access to chemical compound data
 - **IUPAC** for standard atomic weight values
 - **Vercel** for hosting and deployment platform
+- **GitHub** for hosting and deployment platform
+
+- **Gemini 3, Claude 4.5, and Codex 5.3 for the heavy lifting**
 
 ---
 
-**Version:** 1.1.0
-**Last Updated:** 2025-12-31
-**Maintained By:** [morphogenetic2](https://github.com/morphogenetic2)
+**Version:** 2.0.0
+
+**Last Updated:** 2026-02-11
+
+**Maintained by:** [morphogenetic2](https://github.com/morphogenetic2)
+
+**Contributors:**
+[tr4m0ryp](https://github.com/tr4m0ryp)

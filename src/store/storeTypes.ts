@@ -33,6 +33,21 @@ export interface AdjustmentStock {
     type: "acid" | "base";
 }
 
+export interface MoleculeSettings {
+    bondThickness: number;
+    bondLength: number;
+    shortBondLength: number;
+    bondSpacing: number;
+    atomVisualization: "default" | "balls" | "none";
+    terminalCarbons: boolean;
+    explicitHydrogens: boolean;
+    overlapSensitivity: number;
+    fontSizeLarge: number;
+    fontSizeSmall: number;
+    padding: number;
+    maxRenderSize: number;
+}
+
 export interface UiSlice {
     activeTab: ActiveTab;
     setActiveTab: (tab: ActiveTab) => void;
@@ -48,6 +63,8 @@ export interface UiSlice {
 
     theme: "dark" | "light";
     setTheme: (val: "dark" | "light") => void;
+    moleculeSettings: MoleculeSettings;
+    updateMoleculeSettings: (val: Partial<MoleculeSettings>) => void;
 }
 
 export interface MwSlice {

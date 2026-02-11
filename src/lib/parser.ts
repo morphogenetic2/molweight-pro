@@ -46,6 +46,7 @@ export interface ChemicalData {
     name?: string;
     composition: Composition;
     cid?: number;
+    smiles?: string;
     synonyms?: string[];
     solubility?: string;
 }
@@ -244,6 +245,43 @@ export function calculateMw(composition: Composition): number {
         (sum, [symbol, count]) => sum + PTABLE[symbol] * count,
         0
     );
+}
+
+/**
+ * Generates a canonical Hill system formula from a composition.
+ *
+ * Hill system rules:
+ * 1. If Carbon is present: C first, then H, then others alphabetical.
+ * 2. If No Carbon: All elements alphabetical.
+ *
+ * @param {Composition} composition - Elemental composition
+ * @returns {string} Hill system formula string
+ *
+ * @example
+ * generateHillFormula({ C: 2, H: 6, O: 1 }) // "C2H6O"
+ * generateHillFormula({ H: 2, O: 1 })       // "H2O"
+ */
+export function generateHillFormula(composition: Composition): string {
+    const elements = Object.keys(composition).filter(el => composition[el] > 0);
+    if (elements.length === 0) return "";
+
+    let sortedElements: string[];
+    if (composition["C"]) {
+        const hasH = !!composition["H"];
+        const others = elements.filter(el => el !== "C" && el !== "H").sort();
+        sortedElements = hasH ? ["C", "H", ...others] : ["C", ...others];
+    } else {
+        sortedElements = elements.sort();
+    }
+
+    return sortedElements
+        .map(el => {
+            const count = composition[el];
+            // CID search works best with rounded integer counts
+            const roundedCount = Math.round(count);
+            return roundedCount === 1 ? el : el + roundedCount;
+        })
+        .join("");
 }
 
 /**

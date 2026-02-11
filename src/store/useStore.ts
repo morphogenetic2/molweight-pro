@@ -9,6 +9,7 @@ import { createBufferCalcSlice, DEFAULT_BUFFER_CONFIG } from "@/store/slices/buf
 import { createMolaritySlice, DEFAULT_MOLARITY } from "@/store/slices/molaritySlice";
 import { createRecipesSlice } from "@/store/slices/recipesSlice";
 import { createStocksSlice, DEFAULT_ADJUSTMENT_STOCKS } from "@/store/slices/stocksSlice";
+import { DEFAULT_MOLECULE_SETTINGS } from "@/store/slices/uiSlice";
 
 export const useStore = create<AppState>()(
     persist(
@@ -39,7 +40,7 @@ export const useStore = create<AppState>()(
         }),
         {
             name: "molweight-storage-v2",
-            version: 1,
+            version: 2,
             migrate: (persistedState: unknown) => {
                 const state = (typeof persistedState === "object" && persistedState !== null
                     ? { ...(persistedState as Record<string, unknown>) }
@@ -85,6 +86,36 @@ export const useStore = create<AppState>()(
                         state.adjustmentStocks = DEFAULT_ADJUSTMENT_STOCKS;
                     }
                 }
+
+                const rawMoleculeSettings =
+                    typeof state.moleculeSettings === "object" && state.moleculeSettings !== null
+                        ? (state.moleculeSettings as Record<string, unknown>)
+                        : {};
+
+                const rawAtomVisualization = rawMoleculeSettings.atomVisualization;
+                const mappedAtomVisualization =
+                    rawAtomVisualization === "avg"
+                        ? "default"
+                        : rawAtomVisualization === "ball"
+                            ? "balls"
+                            : rawAtomVisualization === "default" ||
+                                rawAtomVisualization === "balls" ||
+                                rawAtomVisualization === "none"
+                                ? rawAtomVisualization
+                                : DEFAULT_MOLECULE_SETTINGS.atomVisualization;
+
+                const rawMaxRenderSize = rawMoleculeSettings.maxRenderSize;
+                const mappedMaxRenderSize =
+                    typeof rawMaxRenderSize === "number"
+                        ? Math.min(400, Math.max(180, rawMaxRenderSize))
+                        : DEFAULT_MOLECULE_SETTINGS.maxRenderSize;
+
+                state.moleculeSettings = {
+                    ...DEFAULT_MOLECULE_SETTINGS,
+                    ...rawMoleculeSettings,
+                    atomVisualization: mappedAtomVisualization,
+                    maxRenderSize: mappedMaxRenderSize,
+                } as AppState["moleculeSettings"];
 
                 return state;
             },

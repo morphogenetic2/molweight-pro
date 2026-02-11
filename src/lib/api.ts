@@ -7,59 +7,77 @@
  * @since 2025-01-01
  */
 
-import { ChemicalData, parseFormula, areCompositionsEqual, normalizeFormula } from "./parser";
+import { ChemicalData, parseFormula, areCompositionsEqual, normalizeFormula, generateHillFormula } from "./parser";
 
 /**
- * Queries PubChem database for a compound ID (CID) by molecular formula.
+ * Fetches molecular properties for a given CID.
+ * 
+ * @async
+ * @param {number} cid - PubChem Compound ID
+ * @returns {Promise<any | null>} Properties object or null
+ */
+async function fetchProperties(cid: number): Promise<any> {
+    const propRes = await fetch(
+        `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,IUPACName,CanonicalSMILES,IsomericSMILES/JSON`
+    );
+    if (!propRes.ok) return null;
+    const data = await propRes.json();
+    const prop = data.PropertyTable.Properties[0];
+    
+    // PubChem usually provides both, but fallback just in case
+    const smiles = prop.IsomericSMILES || prop.CanonicalSMILES || prop.SMILES;
+    
+    return {
+        ...prop,
+        smiles: smiles || null
+    };
+}
+
+/**
+ * Queries PubChem database for a compound ID (CID) and SMILES by molecular formula.
  *
- * Searches PubChem for compounds matching the given molecular formula and returns
- * the first matching CID. This enables 2D structure visualization for manually
- * entered chemical formulas.
+ * This function first canonicalizes the formula into the Hill System (C first,
+ * then H, then alphabetical) to ensure compatibility with PubChem search rules.
  *
  * @async
  * @param {string} formula - Molecular formula (e.g., "H2O", "C6H12O6", "NaCl")
- * @returns {Promise<number | null>} PubChem Compound ID or null if not found
- *
- * @example
- * // Successful lookup
- * const cid = await lookupPubChemByFormula("H2O");
- * // Returns: 962 (CID for water)
- *
- * @example
- * // Failed lookup (invalid formula)
- * const cid = await lookupPubChemByFormula("XYZ123");
- * // Returns: null
- *
- * @throws Never throws - returns null on all errors
- * @see https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest
- * @since 1.0.0
+ * @returns {Promise<{cid: number, smiles: string} | null>} CID and SMILES or null
  */
-export async function lookupPubChemByFormula(formula: string): Promise<number | null> {
+export async function lookupPubChemByFormula(formula: string): Promise<{cid: number, smiles?: string} | null> {
     try {
-        // Search for CID by molecular formula
+        // 1. Canonicalize to Hill System for CID search
+        let searchFormula = formula;
+        try {
+            const comp = parseFormula(formula);
+            searchFormula = generateHillFormula(comp);
+        } catch (e) {
+            // Fall back to original formula if parsing fails
+        }
+        
+        if (!searchFormula) return null;
+
+        // 2. Search for CID by molecular formula using PUG REST
         const searchRes = await fetch(
-            `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/formula/${encodeURIComponent(formula)}/cids/JSON`
+            `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/formula/${encodeURIComponent(searchFormula)}/cids/JSON`
         );
 
-        // 404 = formula not found, not an error condition
-        if (!searchRes.ok) {
-            console.warn(`PubChem: Formula "${formula}" not found (HTTP ${searchRes.status})`);
-            return null;
-        }
-
+        if (!searchRes.ok) return null;
         const searchData = await searchRes.json();
 
-        // Validate response structure and return first CID
         if (!searchData?.IdentifierList?.CID || searchData.IdentifierList.CID.length === 0) {
-            console.warn(`PubChem: No CID found for formula "${formula}"`);
             return null;
         }
 
-        // Return the first CID (most common compound with this formula)
         const cid = searchData.IdentifierList.CID[0];
-        return cid || null;
+        
+        // 3. Fetch properties (including SMILES) for this CID
+        const prop = await fetchProperties(cid);
+        
+        return {
+            cid,
+            smiles: prop?.smiles || undefined
+        };
     } catch (error) {
-        // Log error for debugging but return null for graceful degradation
         console.error("PubChem formula lookup error:", error);
         return null;
     }
@@ -70,90 +88,42 @@ export async function lookupPubChemByFormula(formula: string): Promise<number | 
  *
  * Performs a multi-step API call sequence:
  * 1. Search for Compound ID (CID) by chemical name
- * 2. Fetch molecular properties (formula, weight, IUPAC name)
+ * 2. Fetch molecular properties (formula, weight, IUPAC name, SMILES)
  * 3. Fetch synonyms (common names, trade names)
  * 4. Identify best formula representation from synonyms
  *
- * Returns null on any failure (network error, compound not found, API error)
- * rather than throwing, allowing graceful degradation to local formula parsing.
- *
- * The formula selection logic prioritizes expanded structural formulas over
- * Hill system notation when available in synonyms.
- *
  * @async
- * @param {string} query - Chemical name or identifier (e.g., "aspirin", "ethanol", "glucose")
- * @returns {Promise<Partial<ChemicalData> | null>} Chemical data object or null if lookup fails
- *
- * @example
- * // Successful lookup
- * const aspirin = await lookupPubChem("aspirin");
- * // Returns: {
- * //   cid: 2244,
- * //   mw: 180.16,
- * //   formula: "C9H8O4",
- * //   name: "2-acetyloxybenzoic acid",
- * //   synonyms: ["aspirin", "acetylsalicylic acid", ...]
- * // }
- *
- * @example
- * // Failed lookup (compound not found)
- * const unknown = await lookupPubChem("xyzInvalidName");
- * // Returns: null
- *
- * @throws Never throws - returns null on all errors
- * @see https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest
- * @since 1.0.0
+ * @param {string} query - Chemical name or identifier
+ * @returns {Promise<Partial<ChemicalData> | null>} Chemical data object or null
  */
 export async function lookupPubChem(query: string): Promise<Partial<ChemicalData> | null> {
     try {
         // Step 1: Search for Compound ID (CID) by name
-        // Encode query to handle special characters (e.g., "α-glucose", "2,4-D")
         const searchRes = await fetch(
             `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${encodeURIComponent(query)}/cids/JSON`
         );
 
-        // 404 = compound not found, not an error condition
-        if (!searchRes.ok) {
-            console.warn(`PubChem: Compound "${query}" not found (HTTP ${searchRes.status})`);
-            return null;
-        }
-
+        if (!searchRes.ok) return null;
         const searchData = await searchRes.json();
         const cid = searchData.IdentifierList.CID[0];
 
         // Step 2: Fetch molecular properties
-        // Request molecular formula, weight, and IUPAC name
-        const propRes = await fetch(
-            `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,IUPACName/JSON`
-        );
+        const prop = await fetchProperties(cid);
+        if (!prop) return null;
 
-        if (!propRes.ok) {
-            console.warn(`PubChem: Failed to fetch properties for CID ${cid} (HTTP ${propRes.status})`);
-            return null;
-        }
-
-        const propData = await propRes.json();
-        const prop = propData.PropertyTable.Properties[0];
-
-        // Step 3: Fetch synonyms (common names, trade names, etc.)
-        // This call is optional - don't fail if synonyms are unavailable
+        // Step 3: Fetch synonyms
         const synRes = await fetch(
             `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/synonyms/JSON`
         );
         const synonyms: string[] = synRes.ok ? (await synRes.json()).InformationList.Information[0].Synonym : [];
 
         // Step 4: Identify the best formula
-        // Default is what PubChem gives as MolecularFormula (Hill system, usually compact)
         let bestFormula = prop.MolecularFormula;
         try {
             const baseComp = parseFormula(bestFormula);
-
-            // Filter synonyms for those that look like formulas and match composition
             const formulaCandidates = synonyms.filter(s => {
-                // Heuristic: Must contain letters and numbers, maybe dots/brackets, NO common words
                 if (!/[A-Z]/.test(s)) return false;
-                if (/[a-z]{3,}/.test(s)) return false; // Common words likely have 3+ lowercase letters
-                
+                if (/[a-z]{3,}/.test(s)) return false;
                 try {
                     const comp = parseFormula(s);
                     return areCompositionsEqual(baseComp, comp);
@@ -163,11 +133,6 @@ export async function lookupPubChem(query: string): Promise<Partial<ChemicalData
             });
 
             if (formulaCandidates.length > 0) {
-                // Sort candidates to find the most "expanded" one
-                // Heuristics:
-                // - Contains OH, COOH, NH2, CH3, etc.
-                // - Longer string (more likely expanded)
-                // - Breaking Hill system 
                 const score = (f: string) => {
                     let s = f.length;
                     if (f.includes("OH")) s += 10;
@@ -177,7 +142,6 @@ export async function lookupPubChem(query: string): Promise<Partial<ChemicalData
                     if (f.includes("(")) s += 5;
                     return s;
                 };
-
                 formulaCandidates.sort((a, b) => score(b) - score(a));
                 bestFormula = formulaCandidates[0];
             }
@@ -185,17 +149,15 @@ export async function lookupPubChem(query: string): Promise<Partial<ChemicalData
             console.error("Formula selection error:", e);
         }
 
-        // Return structured data (composition will be calculated from formula)
         return {
             cid,
-            mw: parseFloat(parseFloat(prop.MolecularWeight).toFixed(2)),
-            formula: normalizeFormula(bestFormula, false), // Store as clean but standardizable
+            mw: Number(parseFloat(prop.MolecularWeight).toFixed(2)),
+            formula: normalizeFormula(bestFormula, false),
             name: prop.IUPACName,
+            smiles: prop.smiles || undefined,
             synonyms,
         };
     } catch (error) {
-        // Log error for debugging but return null for graceful degradation
-        // This allows the app to fall back to local formula parsing
         console.error("PubChem API error:", error);
         return null;
     }

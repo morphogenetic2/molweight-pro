@@ -16,7 +16,7 @@ import { useStore } from "@/store/useStore";
 import { parseFormula, calculateMw, ChemicalData, normalizeFormula, tryCalculateMw } from "@/lib/parser";
 import { lookupPubChem, lookupPubChemByFormula } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
-import Image from "next/image";
+import Molecule2D from "../ui/Molecule2D";
 import Molecule3D from "../ui/Molecule3D";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 
@@ -37,12 +37,14 @@ import { useDebounce } from "@/lib/hooks/useDebounce";
  * @since 1.0.0
  */
 export default function MWCalculator() {
-    const { mwInput, setMwInput, mwResult, setMwResult, addToHistory } = useStore();
+    const { mwInput, setMwInput, mwResult, setMwResult, addToHistory, moleculeSettings } = useStore();
     const [loading, setLoading] = useState(false);
+    const [isSearchingStructure, setIsSearchingStructure] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
     const [imageLoading, setImageLoading] = useState(false);
     const [imageError, setImageError] = useState(false);
+    const maxRenderSize = Math.min(400, moleculeSettings.maxRenderSize ?? 320);
 
     const debouncedInput = useDebounce(mwInput, 600);
 
@@ -51,17 +53,32 @@ export default function MWCalculator() {
         const query = debouncedInput.trim();
         if (!query) return;
 
-        // Try local advanced parser
-        const localResult = tryCalculateMw(query);
-        if (localResult) {
-            const result: ChemicalData = {
-                mw: localResult.mw,
-                formula: localResult.formula,
-                composition: parseFormula(query),
-            };
-            setMwResult(result);
-            // Don't add to history automatically on every keystroke to avoid clutter
-        }
+        const updateResult = async () => {
+            // Try local advanced parser
+            const localResult = tryCalculateMw(query);
+            if (localResult) {
+                // Show "Searching for structure..." while the background API call runs
+                setIsSearchingStructure(true);
+                
+                try {
+                    // Background lookup for CID and SMILES to show 2D structure
+                    const pubchemData = await lookupPubChemByFormula(query);
+
+                    const result: ChemicalData = {
+                        mw: localResult.mw,
+                        formula: localResult.formula,
+                        composition: parseFormula(query),
+                        cid: pubchemData?.cid || undefined,
+                        smiles: pubchemData?.smiles || undefined,
+                    };
+                    setMwResult(result);
+                } finally {
+                    setIsSearchingStructure(false);
+                }
+            }
+        };
+
+        updateResult();
     }, [debouncedInput, setMwResult]);
 
     /**
@@ -84,6 +101,7 @@ export default function MWCalculator() {
         if (!query) return;
 
         setLoading(true);
+        setIsSearchingStructure(true);
         setError(null);
         setImageError(false);
 
@@ -93,18 +111,20 @@ export default function MWCalculator() {
             if (localResult) {
                 const comp = parseFormula(query);
                 
-                // Fetch CID for 2D/3D structure visualization
-                const cid = await lookupPubChemByFormula(query);
+                // Fetch CID and SMILES for 2D/3D structure visualization
+                const pubchemData = await lookupPubChemByFormula(query);
                 
                 const result: ChemicalData = {
                     mw: localResult.mw,
                     formula: localResult.formula,
                     composition: comp,
-                    cid: cid || undefined,
+                    cid: pubchemData?.cid || undefined,
+                    smiles: pubchemData?.smiles || undefined,
                 };
                 setMwResult(result);
                 addToHistory(result);
                 setLoading(false);
+                setIsSearchingStructure(false);
                 return;
             }
 
@@ -118,6 +138,7 @@ export default function MWCalculator() {
                     formula: normalizeFormula(res.formula!),
                     name: res.name ? String(res.name) : undefined,
                     cid: res.cid ? Number(res.cid) : undefined,
+                    smiles: res.smiles,
                     composition: comp
                 };
                 setMwResult(result);
@@ -130,6 +151,7 @@ export default function MWCalculator() {
             console.error("MW calculation error:", err);
         } finally {
             setLoading(false);
+            setIsSearchingStructure(false);
         }
     };
 
@@ -259,40 +281,48 @@ export default function MWCalculator() {
                             {mwResult.cid ? (
                                 viewMode === '2d' ? (
                                     <>
-                                        {/* Loading state for image */}
-                                        {imageLoading && (
+                                        {/* Loading state for image file specifically */}
+                                        {imageLoading && !isSearchingStructure && (
                                             <div className="absolute inset-0 flex items-center justify-center">
                                                 <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
                                             </div>
                                         )}
 
-                                        {/* Image error state */}
-                                        {imageError ? (
-                                            <div className="text-center text-zinc-500 italic text-sm px-4">
-                                                <AlertCircle className="h-8 w-8 mx-auto mb-2 text-zinc-600" />
-                                                Failed to load 2D structure image.
-                                                <br />
-                                                <a
-                                                    href={`https://pubchem.ncbi.nlm.nih.gov/compound/${mwResult.cid}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-indigo-400 hover:text-indigo-300 underline mt-2 inline-block"
-                                                >
-                                                    View on PubChem
-                                                </a>
+                                        {/* Structure Rendering Logic */}
+                                        {mwResult.smiles ? (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <Molecule2D 
+                                                    key={mwResult.smiles}
+                                                    smiles={mwResult.smiles} 
+                                                    width={maxRenderSize}
+                                                    height={maxRenderSize}
+                                                />
+                                            </div>
+                                        ) : mwResult.cid ? (
+                                            <div className="w-full h-full flex items-center justify-center relative">
+                                                {imageLoading && !isSearchingStructure && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/5 z-10">
+                                                        <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+                                                    </div>
+                                                )}
+                                                <img
+                                                    src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${mwResult.cid}/PNG`}
+                                                    alt={`2D structure of ${mwResult.name || mwResult.formula}`}
+                                                    className={`max-h-48 sm:max-h-64 object-contain brightness-110 contrast-125 transition-opacity ${imageLoading || isSearchingStructure ? 'opacity-0' : 'opacity-100'}`}
+                                                    onLoad={() => setImageLoading(false)}
+                                                    onError={() => {
+                                                        setImageLoading(false);
+                                                        setImageError(true);
+                                                    }}
+                                                />
                                             </div>
                                         ) : (
-                                            <img
-                                                src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${mwResult.cid}/PNG`}
-                                                alt={`2D structure of ${mwResult.name || mwResult.formula}`}
-                                                className={`max-h-48 sm:max-h-64 object-contain brightness-110 contrast-125 transition-opacity ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
-                                                onLoadStart={() => setImageLoading(true)}
-                                                onLoad={() => setImageLoading(false)}
-                                                onError={() => {
-                                                    setImageLoading(false);
-                                                    setImageError(true);
-                                                }}
-                                            />
+                                            <div className="text-center text-zinc-500 italic text-sm px-4">
+                                                <AlertCircle className="h-8 w-8 mx-auto mb-2 text-zinc-600" />
+                                                No structure data available locally or from PubChem.
+                                                <br />
+                                                <span className="text-[10px] mt-2 block">(Try searching by chemical name for better structural data)</span>
+                                            </div>
                                         )}
                                     </>
                                 ) : (
@@ -300,16 +330,25 @@ export default function MWCalculator() {
                                 )
                             ) : (
                                 <div className="text-center text-zinc-500 italic text-sm px-4">
-                                    <div className="text-zinc-600 mb-2">
-                                        <svg className="h-16 w-16 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                    </div>
-                                    No 2D structure available for manual formula input.
-                                    <br />
-                                    <span className="text-zinc-600 text-xs mt-1 inline-block">
-                                        Try searching by chemical name to see the structure.
-                                    </span>
+                                    {isSearchingStructure ? (
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Loader2 className="h-10 w-10 animate-spin text-indigo-500/50" />
+                                            <p className="animate-pulse">Fetching structure from PubChem...</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="text-zinc-600 mb-2">
+                                                <svg className="h-16 w-16 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </div>
+                                            No 2D structure available for manual formula input.
+                                            <br />
+                                            <span className="text-zinc-600 text-xs mt-1 inline-block">
+                                                Try searching by chemical name to see the structure.
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>

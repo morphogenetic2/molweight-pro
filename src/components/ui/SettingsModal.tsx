@@ -5,7 +5,13 @@ import { X, Trash2, Info, ShieldCheck, Database } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function SettingsModal() {
-    const { isSettingsOpen, setIsSettingsOpen, resetStore } = useStore();
+    const { 
+        isSettingsOpen, 
+        setIsSettingsOpen, 
+        resetStore, 
+        moleculeSettings, 
+        updateMoleculeSettings 
+    } = useStore();
 
     if (!isSettingsOpen) return null;
 
@@ -24,9 +30,9 @@ export function SettingsModal() {
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.95, opacity: 0 }}
-                    className="relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+                    className="relative w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
                 >
-                    <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                    <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02] shrink-0">
                         <div className="flex items-center gap-3">
                             <SettingsIcon className="h-5 w-5 text-indigo-400" />
                             <h2 className="text-lg sm:text-xl font-bold italic tracking-tight">Settings</h2>
@@ -39,7 +45,111 @@ export function SettingsModal() {
                         </button>
                     </div>
 
-                    <div className="p-6 sm:p-8 space-y-6 sm:space-y-8 contents-scrollbar overflow-y-auto max-h-[calc(80vh-80px)]">
+                    <div className="p-6 sm:p-8 space-y-8 overflow-y-auto contents-scrollbar">
+                        {/* Section: Molecule Rendering */}
+                        <section>
+                            <div className="flex items-center gap-2 mb-4 text-zinc-400">
+                                <Database className="h-4 w-4" />
+                                <h3 className="text-sm font-bold uppercase tracking-widest text-[#6366f1]">Rendering (2D)</h3>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div className="glass-card p-4 space-y-4 border-white/5">
+                                    <div className="space-y-4">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-zinc-400 font-medium tracking-tight">Bond Thickness</span>
+                                                <span className="text-indigo-400 font-mono">{moleculeSettings.bondThickness}</span>
+                                            </div>
+                                            <input 
+                                                type="range" min="0.5" max="3" step="0.1"
+                                                value={moleculeSettings.bondThickness}
+                                                onChange={(e) => updateMoleculeSettings({ bondThickness: parseFloat(e.target.value) })}
+                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-zinc-400 font-medium tracking-tight">Bond Length</span>
+                                                <span className="text-indigo-400 font-mono">{moleculeSettings.bondLength}px</span>
+                                            </div>
+                                            <input 
+                                                type="range" min="10" max="40" step="1"
+                                                value={moleculeSettings.bondLength}
+                                                onChange={(e) => updateMoleculeSettings({ 
+                                                    bondLength: parseInt(e.target.value),
+                                                    bondSpacing: 0.18 * parseInt(e.target.value) 
+                                                })}
+                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-zinc-400 font-medium tracking-tight">Font Size</span>
+                                                <span className="text-indigo-400 font-mono">{moleculeSettings.fontSizeLarge}pt</span>
+                                            </div>
+                                            <input 
+                                                type="range" min="6" max="18" step="1"
+                                                value={moleculeSettings.fontSizeLarge}
+                                                onChange={(e) => updateMoleculeSettings({ 
+                                                    fontSizeLarge: parseInt(e.target.value),
+                                                    fontSizeSmall: Math.max(5, parseInt(e.target.value) - 3)
+                                                })}
+                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-zinc-400 font-medium tracking-tight">Max Render Size</span>
+                                                <span className="text-indigo-400 font-mono">
+                                                    {Math.min(400, moleculeSettings.maxRenderSize ?? 320)}px
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="180"
+                                                max="400"
+                                                step="10"
+                                                value={Math.min(400, moleculeSettings.maxRenderSize ?? 320)}
+                                                onChange={(e) =>
+                                                    updateMoleculeSettings({
+                                                        maxRenderSize: parseInt(e.target.value),
+                                                    })
+                                                }
+                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3 pt-2">
+                                        <button 
+                                            onClick={() => updateMoleculeSettings({ terminalCarbons: !moleculeSettings.terminalCarbons })}
+                                            className={`p-2.5 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${
+                                                moleculeSettings.terminalCarbons 
+                                                ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
+                                                : 'bg-white/5 border-white/5 text-zinc-500 hover:text-zinc-400'
+                                            }`}
+                                        >
+                                            Show Terminal C
+                                        </button>
+                                        <button 
+                                            onClick={() => updateMoleculeSettings({ explicitHydrogens: !moleculeSettings.explicitHydrogens })}
+                                            className={`p-2.5 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${
+                                                moleculeSettings.explicitHydrogens 
+                                                ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
+                                                : 'bg-white/5 border-white/5 text-zinc-500 hover:text-zinc-400'
+                                            }`}
+                                        >
+                                            Show Hydrogens
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
                         {/* Section: Data Management */}
                         <section>
                             <div className="flex items-center gap-2 mb-4 text-zinc-400">
