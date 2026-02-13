@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRightLeft, Copy, Download, ListChecks, Printer } from "lucide-react";
+import { ArrowRightLeft, Copy, Download, ListChecks, Printer, WandSparkles } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useStore } from "@/store/useStore";
@@ -429,6 +429,26 @@ export default function SerialDilutionCalculator() {
         () => plan.steps.filter((row) => !row.isPreparation && !row.isBlank).length,
         [plan.steps]
     );
+    const maxAutoConcentrationSteps = useMemo(() => {
+        if (!(safeMode === "auto" && safeSeriesType === "concentration" && safeAutoStopMode === "steps")) {
+            return null;
+        }
+
+        const start = Number.parseFloat(serialDilutionState.startConcentration);
+        const decrement = Number.parseFloat(serialDilutionState.autoConcentrationStep);
+        if (!Number.isFinite(start) || !Number.isFinite(decrement) || start <= 0 || decrement <= 0) {
+            return null;
+        }
+
+        const maxSteps = Math.ceil(start / decrement) - 1;
+        return Math.max(0, Math.min(200, maxSteps));
+    }, [
+        safeMode,
+        safeSeriesType,
+        safeAutoStopMode,
+        serialDilutionState.startConcentration,
+        serialDilutionState.autoConcentrationStep,
+    ]);
 
     const targetStatus = useMemo(() => {
         if (safeMode !== "auto") return "Custom";
@@ -481,6 +501,19 @@ export default function SerialDilutionCalculator() {
         const nextInputs = [...safeCustomStepInputs];
         nextInputs[index] = nextValue;
         setSerialDilutionState({ customStepInputs: nextInputs });
+    };
+
+    const handleFixStepCount = () => {
+        if (maxAutoConcentrationSteps === null) {
+            push("Cannot determine the maximum step count yet. Check start concentration and concentration step.", "info");
+            return;
+        }
+        if (maxAutoConcentrationSteps < 1) {
+            push("No positive concentration steps can be generated from these inputs.", "error");
+            return;
+        }
+        updateStepCount(String(maxAutoConcentrationSteps));
+        push(`Step count set to max valid value (${maxAutoConcentrationSteps}).`, "success");
     };
 
     const handleCopyProtocol = async () => {
@@ -918,33 +951,49 @@ export default function SerialDilutionCalculator() {
                     {(safeMode === "custom" || safeAutoStopMode === "steps") && (
                         <div className="space-y-2 self-start">
                             <label className="block text-xs font-bold text-zinc-500 uppercase">Number of Steps</label>
-                            <div className="inline-flex h-12 items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
-                                <button
-                                    type="button"
-                                    aria-label="Decrease steps"
-                                    onClick={() => updateStepCount(String(safeStepCount - 1))}
-                                    className="px-2.5 py-1.5 rounded-lg text-sm font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
-                                >
-                                    -
-                                </button>
-                                <input
-                                    type="number"
-                                    min={1}
-                                    max={200}
-                                    step={1}
-                                    value={safeStepCount}
-                                    onChange={(e) => updateStepCount(e.target.value)}
-                                    className="w-[6ch] h-full text-center bg-transparent border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
-                                />
-                                <button
-                                    type="button"
-                                    aria-label="Increase steps"
-                                    onClick={() => updateStepCount(String(safeStepCount + 1))}
-                                    className="px-2.5 py-1.5 rounded-lg text-sm font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
-                                >
-                                    +
-                                </button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="inline-flex h-12 items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+                                    <button
+                                        type="button"
+                                        aria-label="Decrease steps"
+                                        onClick={() => updateStepCount(String(safeStepCount - 1))}
+                                        className="px-2.5 py-1.5 rounded-lg text-sm font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                                    >
+                                        -
+                                    </button>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={200}
+                                        step={1}
+                                        value={safeStepCount}
+                                        onChange={(e) => updateStepCount(e.target.value)}
+                                        className="w-[6ch] h-full text-center bg-transparent border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                    />
+                                    <button
+                                        type="button"
+                                        aria-label="Increase steps"
+                                        onClick={() => updateStepCount(String(safeStepCount + 1))}
+                                        className="px-2.5 py-1.5 rounded-lg text-sm font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                                {safeMode === "auto" && safeSeriesType === "concentration" && safeAutoStopMode === "steps" && (
+                                    <button
+                                        type="button"
+                                        onClick={handleFixStepCount}
+                                        disabled={maxAutoConcentrationSteps === null}
+                                        className={`${maxAutoConcentrationSteps !== null && safeStepCount > maxAutoConcentrationSteps ? "fixme-breathe" : ""} inline-flex h-12 items-center gap-2 px-3 rounded-xl border border-indigo-400/30 bg-indigo-500/15 text-indigo-200 text-xs font-bold uppercase tracking-wider hover:bg-indigo-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                        <WandSparkles className="h-4 w-4" />
+                                        Fix me!
+                                    </button>
+                                )}
                             </div>
+                            {safeMode === "auto" && safeSeriesType === "concentration" && safeAutoStopMode === "steps" && maxAutoConcentrationSteps !== null && (
+                                <p className="text-[11px] text-zinc-500">Max allowed with current inputs: {maxAutoConcentrationSteps}</p>
+                            )}
                         </div>
                     )}
                 </div>
