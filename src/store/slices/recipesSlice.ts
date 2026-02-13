@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { AppState, RecipesSlice } from "@/store/storeTypes";
+import { createId } from "@/lib/id";
 
 export const createRecipesSlice: StateCreator<AppState, [], [], RecipesSlice> = (set) => ({
     savedRecipes: [],
@@ -8,7 +9,7 @@ export const createRecipesSlice: StateCreator<AppState, [], [], RecipesSlice> = 
             savedRecipes: [
                 ...state.savedRecipes,
                 {
-                    id: Math.random().toString(36).substr(2, 9),
+                    id: createId(),
                     name,
                     description,
                     totalVolume: state.bufferVolume,
@@ -34,7 +35,7 @@ export const createRecipesSlice: StateCreator<AppState, [], [], RecipesSlice> = 
             activeRecipeName: recipe.name,
             solutes: recipe.solutes.map((s) => ({
                 ...s,
-                id: Math.random().toString(36).substr(2, 9)
+                id: createId()
             }))
         }),
     deleteRecipe: (id) =>

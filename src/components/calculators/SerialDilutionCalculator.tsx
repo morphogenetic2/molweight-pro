@@ -1,41 +1,32 @@
 "use client";
 
-import { useMemo } from "react";
-import { AlertCircle, ArrowRightLeft, Copy, Download, ListChecks } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowRightLeft, Copy, Download, ListChecks, Printer } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useStore } from "@/store/useStore";
 import { useToastStore } from "@/store/useToastStore";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
-import { parseDilutionFactor } from "@/lib/chemistry/dilution";
-import { MASS_CONC_UNITS, MOLAR_UNITS, PERCENT_UNITS, VOLUME_UNITS, convertUnitValue } from "@/lib/chemistry/units";
-import type { SerialDilutionMode } from "@/store/storeTypes";
-
-interface SerialStep {
-    step: number;
-    ratio: string;
-    factor: number;
-    fromConcentration: number;
-    toConcentration: number;
-    transferVolume: number;
-    diluentVolume: number;
-    theoreticalTransferVolume: number;
-    theoreticalDiluentVolume: number;
-    cumulativeFactor: number;
-    adjustedForPipette: boolean;
-    belowMinPipette: boolean;
-}
-
-interface PlanResult {
-    errors: string[];
-    steps: SerialStep[];
-    totalDiluent: number;
-    stockNeeded: number;
-    preparedVolumePerStep: number | null;
-    aliquotCount: number;
-    finalConcentration: number | null;
-    targetReached: boolean;
-    targetExact: boolean;
-    target: number | null;
-}
+import {
+    MASS_CONC_UNITS,
+    MOLAR_UNITS,
+    PERCENT_UNITS,
+    VOLUME_UNITS,
+    convertUnitValue,
+    getUnitLabel,
+    getUnitType,
+    parseValueWithUnit,
+} from "@/lib/chemistry/units";
+import {
+    buildSerialPlan,
+    normalizeCustomDilutionToken,
+    resizeCustomStepInputs,
+} from "@/lib/serialDilution/planner";
+import type {
+    SerialAutoStopMode,
+    SerialDilutionMode,
+    SerialSeriesType,
+} from "@/store/storeTypes";
 
 const CONC_OPTS = [
     ...Object.keys(MOLAR_UNITS),
@@ -44,14 +35,7 @@ const CONC_OPTS = [
 ];
 
 const VOL_OPTS = Object.keys(VOLUME_UNITS);
-
-function parsePositiveNumber(raw: string): number | null {
-    const parsed = Number.parseFloat(raw);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-        return null;
-    }
-    return parsed;
-}
+const BLANK_STEP_TOKENS = new Set(["0", "b", "blank"]);
 
 function formatNumber(value: number, digits = 6): string {
     if (!Number.isFinite(value)) return "-";
@@ -62,94 +46,78 @@ function formatNumber(value: number, digits = 6): string {
     return Number.parseFloat(value.toPrecision(digits)).toString();
 }
 
-function splitCustomRatioTokens(raw: string): { tokens: string[]; invalidFragments: string[] } {
-    const normalized = raw.replace(/[×*]/g, "x");
-    const segments = normalized
-        .split(/[,;\n]+/)
-        .map((segment) => segment.trim())
-        .filter(Boolean);
-
-    const tokens: string[] = [];
-    const invalidFragments: string[] = [];
-    const exprRegex = /\d*\.?\d+\s*[:/]\s*\d*\.?\d+|x\s*\d*\.?\d+|\d*\.?\d+/gi;
-
-    for (const segment of segments) {
-        const matches = segment.match(exprRegex)?.map((m) => m.trim()).filter(Boolean) ?? [];
-        if (matches.length === 0) {
-            invalidFragments.push(segment);
-            continue;
-        }
-
-        const remainder = segment.replace(exprRegex, " ").replace(/\s+/g, "");
-        if (remainder.length > 0) {
-            invalidFragments.push(segment);
-            continue;
-        }
-
-        tokens.push(...matches);
+function formatPipetteVolumeInUl(valueUl: number): string {
+    if (!Number.isFinite(valueUl) || valueUl <= 0) return "0 μL";
+    if (valueUl < 0.001) return "<0.001 μL";
+    if (valueUl <= 2.5) return `${valueUl.toFixed(3)} μL`;
+    if (valueUl <= 10) return `${valueUl.toFixed(2)} μL`;
+    if (valueUl <= 200) {
+        const rounded = Math.round(valueUl / 0.02) * 0.02;
+        return `${rounded.toFixed(2)} μL`;
     }
-
-    return { tokens, invalidFragments };
+    if (valueUl <= 1000) return `${Math.round(valueUl)} μL`;
+    const inMl = valueUl / 1000;
+    return `${Number.parseFloat(inMl.toFixed(3))} mL`;
 }
 
-function quantizeTransferToPipette(
-    transferVolume: number,
-    volumeUnit: string,
-    minPipetteVolumeUl: number,
-    finalVolume: number
-): { transferVolume: number; diluentVolume: number; adjustedForPipette: boolean; belowMinPipette: boolean } {
-    if (transferVolume <= 0) {
-        return {
-            transferVolume: 0,
-            diluentVolume: Math.max(finalVolume, 0),
-            adjustedForPipette: false,
-            belowMinPipette: false,
-        };
-    }
-
-    const transferUl = convertUnitValue(transferVolume, volumeUnit, "uL");
-    if (transferUl === null || !Number.isFinite(transferUl)) {
-        return {
-            transferVolume,
-            diluentVolume: Math.max(finalVolume - transferVolume, 0),
-            adjustedForPipette: false,
-            belowMinPipette: false,
-        };
-    }
-
-    const belowMinPipette = transferUl < minPipetteVolumeUl;
-    const roundedTransferUl = Math.max(
-        minPipetteVolumeUl,
-        Math.round(transferUl / minPipetteVolumeUl) * minPipetteVolumeUl
-    );
-    const roundedTransfer = convertUnitValue(roundedTransferUl, "uL", volumeUnit) ?? transferVolume;
-    const clampedTransfer = Math.min(roundedTransfer, finalVolume);
-
-    return {
-        transferVolume: clampedTransfer,
-        diluentVolume: Math.max(finalVolume - clampedTransfer, 0),
-        adjustedForPipette: Math.abs(clampedTransfer - transferVolume) > 1e-12,
-        belowMinPipette,
-    };
-}
-
-function ratioLabel(factor: number): string {
-    const rounded = Math.round(factor);
-    if (Math.abs(factor - rounded) < 1e-9) {
-        return `1:${rounded}`;
-    }
-    return `1:${formatNumber(factor, 4)}`;
-}
-
-function formatVolumeWithAutoUl(value: number, unit: string): string {
-    const inMl = convertUnitValue(value, unit, "mL");
-    if (inMl !== null && inMl > 0 && inMl < 1) {
-        const inUl = convertUnitValue(value, unit, "uL");
-        if (inUl !== null && Number.isFinite(inUl)) {
-            return `${formatNumber(inUl)} μL`;
-        }
+function formatVolume(value: number, unit: string): string {
+    const valueUl = convertUnitValue(value, unit, "uL");
+    if (valueUl !== null && Number.isFinite(valueUl)) {
+        return formatPipetteVolumeInUl(valueUl);
     }
     return `${formatNumber(value)} ${unit}`;
+}
+
+function pickReadableMolarUnit(value: number, unit: string): { value: number; unit: string } {
+    const normalizedUnit = unit === "μM" ? "uM" : unit;
+    const molarUnits = ["M", "mM", "uM", "nM"] as const;
+    if (!molarUnits.includes(normalizedUnit as (typeof molarUnits)[number])) {
+        return { value, unit };
+    }
+
+    const converted = molarUnits
+        .map((candidate) => ({
+            unit: candidate,
+            value: convertUnitValue(value, unit, candidate),
+        }))
+        .filter((entry): entry is { unit: (typeof molarUnits)[number]; value: number } =>
+            entry.value !== null && Number.isFinite(entry.value) && entry.value > 0
+        );
+
+    const inPreferredRange = converted.find((entry) => entry.value >= 1 && entry.value < 1000);
+    if (inPreferredRange) {
+        return inPreferredRange;
+    }
+
+    if (converted.length === 0) {
+        return { value, unit };
+    }
+
+    const maxValue = converted.reduce((best, entry) =>
+        entry.value > best.value ? entry : best
+    );
+    const minValue = converted.reduce((best, entry) =>
+        entry.value < best.value ? entry : best
+    );
+
+    if (maxValue.value < 1) {
+        return maxValue;
+    }
+    if (minValue.value >= 1000) {
+        return minValue;
+    }
+
+    return { value, unit: normalizedUnit };
+}
+
+function formatConcentration(value: number | null, unit: string): string {
+    if (value === null || !Number.isFinite(value)) return "-";
+    if (getUnitType(unit) !== "molar") {
+        return `${formatNumber(value)} ${getUnitLabel(unit)}`;
+    }
+
+    const scaled = pickReadableMolarUnit(value, unit);
+    return `${formatNumber(scaled.value)} ${getUnitLabel(scaled.unit)}`;
 }
 
 function escapeCsv(value: string): string {
@@ -159,89 +127,172 @@ function escapeCsv(value: string): string {
     return value;
 }
 
+type SerialPlanStep = ReturnType<typeof buildSerialPlan>["steps"][number];
+
+function buildStepInstruction(
+    row: SerialPlanStep,
+    volumeUnit: string,
+    concentrationUnit: string,
+    dispenseVolumePerDestination?: number | null
+): string {
+    const transferText = formatVolume(row.transferVolume, volumeUnit);
+    const diluentText = formatVolume(row.diluentVolume, volumeUnit);
+    const dispenseText =
+        typeof dispenseVolumePerDestination === "number" &&
+        Number.isFinite(dispenseVolumePerDestination) &&
+        dispenseVolumePerDestination > 0
+            ? formatVolume(dispenseVolumePerDestination, volumeUnit)
+            : null;
+
+    if (row.isBlank) {
+        if (dispenseText) {
+            return `Add ${diluentText} of diluent only (no transfer from previous solution), then dispense ${dispenseText} per blank destination well/tube.`;
+        }
+        return `Add ${diluentText} of diluent only to the blank well/tube. Do not transfer from the previous solution.`;
+    }
+
+    if (row.isPreparation) {
+        const toConcentration = formatConcentration(row.toConcentration ?? 0, concentrationUnit);
+        if (dispenseText) {
+            return `Take ${transferText} from stock, add ${diluentText} of diluent, mix thoroughly, then use this as the start solution (${toConcentration}); dispense ${dispenseText} per Step 1 destination and keep the remaining volume for downstream transfer.`;
+        }
+        return `Take ${transferText} from stock, add ${diluentText} of diluent, mix thoroughly, then use this as the start solution (${toConcentration}) for dispensing and downstream serial transfer.`;
+    }
+
+    const toConcentration = formatConcentration(row.toConcentration ?? 0, concentrationUnit);
+    if (dispenseText) {
+        return `Pipette ${transferText} from the previous solution, add ${diluentText} of diluent, mix thoroughly, then dispense ${dispenseText} per Step ${row.stepLabel} destination (${toConcentration}) and keep the remaining volume for the next transfer if needed.`;
+    }
+    return `Pipette ${transferText} from the previous solution, add ${diluentText} of diluent, mix thoroughly, then use this to dispense step ${row.stepLabel} wells/tubes (${toConcentration}).`;
+}
+
+function normalizeCustomConcentrationToken(raw: string, defaultUnit: string): string {
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+    if (BLANK_STEP_TOKENS.has(trimmed.toLowerCase())) return "BLANK";
+
+    const parsed = parseValueWithUnit(trimmed, CONC_OPTS);
+    const numeric = Number.parseFloat(parsed.value);
+    if (!Number.isFinite(numeric)) return trimmed;
+
+    const unit = parsed.unit ?? defaultUnit;
+    return `${formatNumber(numeric)} ${getUnitLabel(unit)}`;
+}
+
 function buildProtocolText(params: {
     mode: SerialDilutionMode;
-    steps: SerialStep[];
+    seriesType: SerialSeriesType;
+    autoStopMode: SerialAutoStopMode;
     stockConcentration: string;
     startConcentration: string;
+    targetConcentration: string;
+    targetConcentrationUnit: string;
     concentrationUnit: string;
     finalVolume: string;
     volumeUnit: string;
     replicates: number;
-    extraSamples: number;
     overagePercent: number;
+    includeBlank: boolean;
+    stepCount: number;
+    autoDilutionFactor: string;
+    autoConcentrationStep: string;
     preparedVolumePerStep: number | null;
-    targetConcentration: string;
-    autoRatio: string;
-    exactLastStep: boolean;
-    minPipetteVolumeUl: number;
+    steps: ReturnType<typeof buildSerialPlan>["steps"];
 }): string {
     const {
         mode,
-        steps,
+        seriesType,
+        autoStopMode,
         stockConcentration,
         startConcentration,
+        targetConcentration,
+        targetConcentrationUnit,
         concentrationUnit,
         finalVolume,
         volumeUnit,
         replicates,
-        extraSamples,
         overagePercent,
+        includeBlank,
+        stepCount,
+        autoDilutionFactor,
+        autoConcentrationStep,
         preparedVolumePerStep,
-        targetConcentration,
-        autoRatio,
-        exactLastStep,
-        minPipetteVolumeUl,
+        steps,
     } = params;
+    const parsedDispenseVolume = Number.parseFloat(finalVolume);
+    const dispenseVolumePerDestination =
+        Number.isFinite(parsedDispenseVolume) && parsedDispenseVolume > 0
+            ? parsedDispenseVolume
+            : null;
 
     const lines = [
         "Serial Dilution Protocol",
         `Mode: ${mode === "auto" ? "Auto" : "Custom"}`,
+        `Input type: ${seriesType === "dilution" ? "Dilutions" : "Concentrations"}`,
         `Stock concentration: ${stockConcentration} ${concentrationUnit}`,
-        `First curve concentration: ${startConcentration} ${concentrationUnit}`,
-        `Per-sample final volume: ${finalVolume} ${volumeUnit}`,
+        `Start concentration: ${startConcentration} ${concentrationUnit}`,
+        `Final volume per sample: ${finalVolume} ${volumeUnit}`,
         `Replicates: ${replicates}`,
-        `Extra samples: ${extraSamples}`,
-        `Overage: ${overagePercent}%`,
-        `Prepared volume per step: ${preparedVolumePerStep ? formatVolumeWithAutoUl(preparedVolumePerStep, volumeUnit) : "-"}`,
-        `Minimum pipettable volume: ${formatNumber(minPipetteVolumeUl)} μL`,
+        `Overage: ${overagePercent}% (one-replicate safety margin)`,
+        `Include blank: ${includeBlank ? "yes" : "no"}`,
+        `Dispense volume per destination: ${dispenseVolumePerDestination ? formatVolume(dispenseVolumePerDestination, volumeUnit) : "-"}`,
+        `Prepared total per dilution step: ${preparedVolumePerStep ? formatVolume(preparedVolumePerStep, volumeUnit) : "-"}`,
+        "Transfer + diluent rows already include extra carry-over volume for downstream steps.",
     ];
 
     if (mode === "auto") {
-        lines.push(`Target concentration: ${targetConcentration} ${concentrationUnit}`);
-        lines.push(`Base dilution factor: ${autoRatio}`);
-        lines.push(`Exact last step: ${exactLastStep ? "yes" : "no"}`);
+        lines.push(`Auto stop mode: ${autoStopMode === "target" ? "Final concentration" : "Step count"}`);
+        if (autoStopMode === "target") {
+            lines.push(`Target concentration: ${targetConcentration} ${targetConcentrationUnit}`);
+        } else {
+            lines.push(`Step count: ${stepCount}`);
+        }
+        if (seriesType === "dilution") {
+            lines.push(`Auto dilution factor: ${autoDilutionFactor}`);
+        } else {
+            lines.push(`Concentration decrement: ${autoConcentrationStep} ${concentrationUnit}`);
+        }
+    } else {
+        lines.push(`Step count: ${stepCount}`);
     }
 
     lines.push("", "Steps:");
     lines.push(
-        ...steps.map((row) =>
-            `Step ${row.step}: Mix ${formatVolumeWithAutoUl(row.transferVolume, volumeUnit)} previous solution + ${formatVolumeWithAutoUl(row.diluentVolume, volumeUnit)} diluent (${row.ratio}) -> ${formatNumber(row.toConcentration)} ${concentrationUnit}`
-        )
+        ...steps.map((row) => {
+            if (row.isBlank) {
+                return `Blank: ${buildStepInstruction(row, volumeUnit, concentrationUnit, dispenseVolumePerDestination)}`;
+            }
+            const stepTitle = row.isPreparation ? "Step 0 (PRE-DILUTION)" : `Step ${row.stepLabel}`;
+            return `${stepTitle}: ${buildStepInstruction(row, volumeUnit, concentrationUnit, dispenseVolumePerDestination)}`;
+        })
     );
 
     return lines.join("\n");
 }
 
-function buildProtocolCsv(steps: SerialStep[], concentrationUnit: string, volumeUnit: string): string {
+function buildProtocolCsv(
+    steps: ReturnType<typeof buildSerialPlan>["steps"],
+    concentrationUnit: string,
+    volumeUnit: string
+): string {
     const header = [
         "Step",
         "Dilution",
         `From (${concentrationUnit})`,
         `To (${concentrationUnit})`,
-        "Transfer Volume",
-        "Diluent Volume",
-        "Cumulative Dilution",
+        "Transfer",
+        "Diluent",
+        "Cumulative",
     ];
 
     const rows = steps.map((row) => [
-        String(row.step),
-        row.ratio,
-        formatNumber(row.fromConcentration),
-        formatNumber(row.toConcentration),
-        formatVolumeWithAutoUl(row.transferVolume, volumeUnit),
-        formatVolumeWithAutoUl(row.diluentVolume, volumeUnit),
-        `1:${formatNumber(row.cumulativeFactor, 5)}`,
+        row.isPreparation ? "0 (PRE-DILUTION)" : row.stepLabel,
+        row.isPreparation ? `PRE-DILUTION ${row.ratio}` : row.ratio,
+        row.fromConcentration === null ? "-" : formatNumber(row.fromConcentration),
+        row.isBlank ? "BLANK" : formatNumber(row.toConcentration ?? 0),
+        formatVolume(row.transferVolume, volumeUnit),
+        formatVolume(row.diluentVolume, volumeUnit),
+        row.cumulativeFactor === null ? "-" : `1:${formatNumber(row.cumulativeFactor, 5)}`,
     ]);
 
     return [header, ...rows]
@@ -249,264 +300,188 @@ function buildProtocolCsv(steps: SerialStep[], concentrationUnit: string, volume
         .join("\n");
 }
 
+function sanitizePdfText(raw: string): string {
+    return raw.replace(/μ/g, "u");
+}
+
 export default function SerialDilutionCalculator() {
     const { serialDilutionState, setSerialDilutionState } = useStore();
     const { push } = useToastStore();
-    const {
-        mode,
-        stockConcentration,
-        startConcentration,
-        targetConcentration,
-        concentrationUnit,
-        finalVolume,
-        volumeUnit,
-        replicates,
-        extraSamples,
-        overagePercent,
-        autoRatio,
-        customRatios,
-        exactLastStep,
-        minPipetteVolumeUl,
-    } = serialDilutionState;
-    const safeReplicates = Number.isInteger(replicates) && replicates >= 1 ? replicates : 1;
-    const safeExtraSamples = Number.isInteger(extraSamples) && extraSamples >= 0 ? extraSamples : 0;
-    const safeOveragePercent = overagePercent === 10 || overagePercent === 15 ? overagePercent : 0;
-    const safeMinPipetteVolumeUl =
-        minPipetteVolumeUl === 0.001 ||
-        minPipetteVolumeUl === 0.01 ||
-        minPipetteVolumeUl === 0.02 ||
-        minPipetteVolumeUl === 0.2 ||
-        minPipetteVolumeUl === 1
-            ? minPipetteVolumeUl
-            : 0.2;
-    const safeStockConcentration = typeof stockConcentration === "string" && stockConcentration.trim() !== ""
-        ? stockConcentration
-        : startConcentration;
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [instructionsExportName, setInstructionsExportName] = useState("");
 
-    const plan = useMemo<PlanResult>(() => {
-        const errors: string[] = [];
+    const safeMode: SerialDilutionMode = serialDilutionState.mode === "custom" ? "custom" : "auto";
+    const safeSeriesType: SerialSeriesType =
+        serialDilutionState.seriesType === "concentration" ? "concentration" : "dilution";
+    const safeAutoStopMode: SerialAutoStopMode =
+        serialDilutionState.autoStopMode === "steps" ? "steps" : "target";
+    const safeReplicates =
+        Number.isInteger(serialDilutionState.replicates) && serialDilutionState.replicates >= 1
+            ? serialDilutionState.replicates
+            : 1;
+    const safeOveragePercent = [0, 5, 10, 20].includes(serialDilutionState.overagePercent)
+        ? serialDilutionState.overagePercent
+        : 0;
+    const safeStepCount =
+        Number.isInteger(serialDilutionState.stepCount) &&
+        serialDilutionState.stepCount >= 1 &&
+        serialDilutionState.stepCount <= 200
+            ? serialDilutionState.stepCount
+            : 1;
+    const safeCustomStepInputs = useMemo(
+        () => resizeCustomStepInputs(serialDilutionState.customStepInputs ?? [], safeStepCount),
+        [serialDilutionState.customStepInputs, safeStepCount]
+    );
 
-        const stock = parsePositiveNumber(safeStockConcentration);
-        if (!stock) {
-            errors.push("Stock concentration must be a number greater than zero.");
-        }
-
-        const start = parsePositiveNumber(startConcentration);
-        if (!start) {
-            errors.push("Start concentration must be a number greater than zero.");
-        }
-        if (stock && start && stock < start) {
-            errors.push("Stock concentration must be greater than or equal to start concentration.");
-        }
-
-        const volume = parsePositiveNumber(finalVolume);
-        if (!volume) {
-            errors.push("Final volume per step must be a number greater than zero.");
-        }
-        const replicateCount = safeReplicates;
-        const extraCount = safeExtraSamples;
-        const overage = safeOveragePercent;
-
-        const aliquotCount = replicateCount + extraCount;
-        const preparedVolumePerStep =
-            volume && aliquotCount > 0
-                ? volume * aliquotCount * (1 + overage / 100)
-                : null;
-
-        let factors: number[] = [];
-        let target: number | null = null;
-
-        if (mode === "auto") {
-            target = parsePositiveNumber(targetConcentration);
-            if (!target) {
-                errors.push("Target concentration must be a number greater than zero.");
-            }
-
-            const factor = parseDilutionFactor(autoRatio);
-            if (!factor) {
-                errors.push("Auto ratio must be a valid dilution like 1:2, 1:10, or x4.");
-            }
-
-            if (start && target && start <= target) {
-                errors.push("Target concentration must be lower than start concentration.");
-            }
-
-            if (start && target && factor && start > target) {
-                const stepCount = Math.ceil(Math.log(start / target) / Math.log(factor));
-                if (!Number.isFinite(stepCount) || stepCount <= 0) {
-                    errors.push("Could not generate steps from these values.");
-                } else if (stepCount > 200) {
-                    errors.push("Plan would exceed 200 steps. Increase ratio or raise target concentration.");
-                } else if (exactLastStep) {
-                    const prefixFactors = Array.from({ length: Math.max(stepCount - 1, 0) }, () => factor);
-                    const concentrationBeforeLast = prefixFactors.reduce((conc, current) => conc / current, start);
-                    const lastFactor = concentrationBeforeLast / target;
-
-                    if (!Number.isFinite(lastFactor) || lastFactor <= 1) {
-                        errors.push("Could not compute an exact last step with these values.");
-                    } else {
-                        factors = [...prefixFactors, lastFactor];
-                    }
-                } else {
-                    factors = Array.from({ length: stepCount }, () => factor);
-                }
-            }
-        } else {
-            const { tokens, invalidFragments } = splitCustomRatioTokens(customRatios);
-
-            if (tokens.length === 0) {
-                errors.push("Add at least one ratio in custom mode (example: 1:2, 1:4, 1:2).");
-            } else {
-                const parsed = tokens.map((token) => ({ token, factor: parseDilutionFactor(token) }));
-                const invalid = parsed.filter((entry) => !entry.factor).map((entry) => entry.token);
-                invalid.push(...invalidFragments);
-                if (invalid.length > 0) {
-                    errors.push(`Invalid dilution(s): ${invalid.join(", ")}.`);
-                } else {
-                    factors = parsed.map((entry) => entry.factor as number);
-                }
-            }
-        }
-
-        if (errors.length > 0 || !start || !volume || !preparedVolumePerStep) {
-            return {
-                errors,
-                steps: [],
-                totalDiluent: 0,
-                stockNeeded: 0,
-                preparedVolumePerStep,
-                aliquotCount,
-                finalConcentration: null,
-                targetReached: false,
-                targetExact: false,
-                target,
-            };
-        }
-
-        const reduced = factors.reduce(
-            (acc, factor, index) => {
-                const fromConcentration = acc.currentConcentration;
-                const toConcentration = fromConcentration / factor;
-                const theoreticalTransferVolume = preparedVolumePerStep / factor;
-                const theoreticalDiluentVolume = preparedVolumePerStep - theoreticalTransferVolume;
-                const practical = quantizeTransferToPipette(
-                    theoreticalTransferVolume,
-                    volumeUnit,
-                    safeMinPipetteVolumeUl,
-                    preparedVolumePerStep
-                );
-                const cumulativeFactor = acc.currentCumulative * factor;
-                const row: SerialStep = {
-                    step: index + 1,
-                    ratio: ratioLabel(factor),
-                    factor,
-                    fromConcentration,
-                    toConcentration,
-                    transferVolume: practical.transferVolume,
-                    diluentVolume: practical.diluentVolume,
-                    theoreticalTransferVolume,
-                    theoreticalDiluentVolume,
-                    cumulativeFactor,
-                    adjustedForPipette: practical.adjustedForPipette,
-                    belowMinPipette: practical.belowMinPipette,
-                };
-                return {
-                    steps: acc.steps.concat(row),
-                    currentConcentration: toConcentration,
-                    currentCumulative: cumulativeFactor,
-                };
-            },
-            {
-                steps: [] as SerialStep[],
-                currentConcentration: start,
-                currentCumulative: 1,
-            }
-        );
-
-        let steps = reduced.steps;
-
-        if (stock && start && stock > start && preparedVolumePerStep) {
-            const stepZeroFactor = stock / start;
-            const theoreticalTransferVolume = preparedVolumePerStep / stepZeroFactor;
-            const theoreticalDiluentVolume = preparedVolumePerStep - theoreticalTransferVolume;
-            const practical = quantizeTransferToPipette(
-                theoreticalTransferVolume,
-                volumeUnit,
-                safeMinPipetteVolumeUl,
-                preparedVolumePerStep
-            );
-
-            const stepZero: SerialStep = {
-                step: 0,
-                ratio: ratioLabel(stepZeroFactor),
-                factor: stepZeroFactor,
-                fromConcentration: stock,
-                toConcentration: start,
-                transferVolume: practical.transferVolume,
-                diluentVolume: practical.diluentVolume,
-                theoreticalTransferVolume,
-                theoreticalDiluentVolume,
-                cumulativeFactor: stepZeroFactor,
-                adjustedForPipette: practical.adjustedForPipette,
-                belowMinPipette: practical.belowMinPipette,
-            };
-
-            steps = [stepZero, ...steps.map((row) => ({
-                ...row,
-                cumulativeFactor: row.cumulativeFactor * stepZeroFactor,
-            }))];
-        }
-
-        const totalDiluent = steps.reduce((sum, row) => sum + row.diluentVolume, 0);
-        const stockNeeded = steps[0]?.transferVolume ?? 0;
-        const finalConcentration = steps[steps.length - 1]?.toConcentration ?? start;
-        const tolerance = target ? Math.max(target * 1e-9, 1e-12) : 0;
-        const targetReached = target ? finalConcentration <= target + tolerance : false;
-        const targetExact = target ? Math.abs(finalConcentration - target) <= tolerance : false;
-
-        return {
-            errors,
-            steps,
-            totalDiluent,
-            stockNeeded,
-            preparedVolumePerStep,
-            aliquotCount,
-            finalConcentration,
-            targetReached,
-            targetExact,
-            target,
-        };
-    }, [mode, safeStockConcentration, startConcentration, targetConcentration, finalVolume, safeReplicates, safeExtraSamples, safeOveragePercent, autoRatio, customRatios, exactLastStep, volumeUnit, safeMinPipetteVolumeUl]);
-
-    const pipetteAdjustedSteps = plan.steps.filter((step) => step.adjustedForPipette).length;
-    const belowMinSteps = plan.steps.filter((step) => step.belowMinPipette).length;
+    const plan = useMemo(
+        () =>
+            buildSerialPlan({
+                mode: safeMode,
+                seriesType: safeSeriesType,
+                autoStopMode: safeAutoStopMode,
+                stockConcentration: serialDilutionState.stockConcentration,
+                startConcentration: serialDilutionState.startConcentration,
+                targetConcentration: serialDilutionState.targetConcentration,
+                targetConcentrationUnit: serialDilutionState.targetConcentrationUnit,
+                concentrationUnit: serialDilutionState.concentrationUnit,
+                finalVolume: serialDilutionState.finalVolume,
+                volumeUnit: serialDilutionState.volumeUnit,
+                replicates: safeReplicates,
+                overagePercent: safeOveragePercent,
+                includeBlank: Boolean(serialDilutionState.includeBlank),
+                stepCount: safeStepCount,
+                autoDilutionFactor: serialDilutionState.autoDilutionFactor,
+                autoConcentrationStep: serialDilutionState.autoConcentrationStep,
+                customStepInputs: safeCustomStepInputs,
+            }),
+        [
+            safeMode,
+            safeSeriesType,
+            safeAutoStopMode,
+            serialDilutionState.stockConcentration,
+            serialDilutionState.startConcentration,
+            serialDilutionState.targetConcentration,
+            serialDilutionState.targetConcentrationUnit,
+            serialDilutionState.concentrationUnit,
+            serialDilutionState.finalVolume,
+            serialDilutionState.volumeUnit,
+            safeReplicates,
+            safeOveragePercent,
+            serialDilutionState.includeBlank,
+            safeStepCount,
+            serialDilutionState.autoDilutionFactor,
+            serialDilutionState.autoConcentrationStep,
+            safeCustomStepInputs,
+        ]
+    );
 
     const protocolText = useMemo(
         () =>
             buildProtocolText({
-                mode,
-                steps: plan.steps,
-                stockConcentration: safeStockConcentration,
-                startConcentration,
-                concentrationUnit,
-                finalVolume,
-                volumeUnit,
+                mode: safeMode,
+                seriesType: safeSeriesType,
+                autoStopMode: safeAutoStopMode,
+                stockConcentration: serialDilutionState.stockConcentration,
+                startConcentration: serialDilutionState.startConcentration,
+                targetConcentration: serialDilutionState.targetConcentration,
+                targetConcentrationUnit: serialDilutionState.targetConcentrationUnit,
+                concentrationUnit: serialDilutionState.concentrationUnit,
+                finalVolume: serialDilutionState.finalVolume,
+                volumeUnit: serialDilutionState.volumeUnit,
                 replicates: safeReplicates,
-                extraSamples: safeExtraSamples,
                 overagePercent: safeOveragePercent,
+                includeBlank: Boolean(serialDilutionState.includeBlank),
+                stepCount: safeStepCount,
+                autoDilutionFactor: serialDilutionState.autoDilutionFactor,
+                autoConcentrationStep: serialDilutionState.autoConcentrationStep,
                 preparedVolumePerStep: plan.preparedVolumePerStep,
-                targetConcentration,
-                autoRatio,
-                exactLastStep,
-                minPipetteVolumeUl: safeMinPipetteVolumeUl,
+                steps: plan.steps,
             }),
-        [mode, plan.steps, safeStockConcentration, startConcentration, concentrationUnit, finalVolume, volumeUnit, safeReplicates, safeExtraSamples, safeOveragePercent, plan.preparedVolumePerStep, targetConcentration, autoRatio, exactLastStep, safeMinPipetteVolumeUl]
+        [
+            safeMode,
+            safeSeriesType,
+            safeAutoStopMode,
+            serialDilutionState.stockConcentration,
+            serialDilutionState.startConcentration,
+            serialDilutionState.targetConcentration,
+            serialDilutionState.targetConcentrationUnit,
+            serialDilutionState.concentrationUnit,
+            serialDilutionState.finalVolume,
+            serialDilutionState.volumeUnit,
+            safeReplicates,
+            safeOveragePercent,
+            serialDilutionState.includeBlank,
+            safeStepCount,
+            serialDilutionState.autoDilutionFactor,
+            serialDilutionState.autoConcentrationStep,
+            plan.preparedVolumePerStep,
+            plan.steps,
+        ]
     );
 
     const protocolCsv = useMemo(
-        () => buildProtocolCsv(plan.steps, concentrationUnit, volumeUnit),
-        [plan.steps, concentrationUnit, volumeUnit]
+        () => buildProtocolCsv(plan.steps, serialDilutionState.concentrationUnit, serialDilutionState.volumeUnit),
+        [plan.steps, serialDilutionState.concentrationUnit, serialDilutionState.volumeUnit]
     );
+    const hasPreparation = useMemo(() => plan.steps.some((row) => row.isPreparation), [plan.steps]);
+    const hasBlank = useMemo(() => plan.steps.some((row) => row.isBlank), [plan.steps]);
+    const mainStepCount = useMemo(
+        () => plan.steps.filter((row) => !row.isPreparation && !row.isBlank).length,
+        [plan.steps]
+    );
+
+    const targetStatus = useMemo(() => {
+        if (safeMode !== "auto") return "Custom";
+        if (safeAutoStopMode !== "target") return "Step-count";
+        const targetInTargetUnit = plan.target === null
+            ? null
+            : convertUnitValue(
+                plan.target,
+                serialDilutionState.concentrationUnit,
+                serialDilutionState.targetConcentrationUnit
+            );
+        const targetValue = targetInTargetUnit ?? plan.target;
+        const targetUnit = targetInTargetUnit === null
+            ? serialDilutionState.concentrationUnit
+            : serialDilutionState.targetConcentrationUnit;
+        if (plan.targetExact) return "Exact";
+        if (plan.targetAbove && targetValue !== null) {
+            return `Closest > ${formatNumber(targetValue)} ${targetUnit}`;
+        }
+        if (targetValue !== null) {
+            return `Reached ${formatNumber(targetValue)} ${targetUnit}`;
+        }
+        return "-";
+    }, [
+        safeMode,
+        safeAutoStopMode,
+        plan.targetExact,
+        plan.targetAbove,
+        plan.target,
+        serialDilutionState.concentrationUnit,
+        serialDilutionState.targetConcentrationUnit,
+    ]);
+
+    const updateStepCount = (nextRaw: string) => {
+        const parsed = Number.parseInt(nextRaw, 10);
+        const bounded = Number.isFinite(parsed) ? Math.max(1, Math.min(200, parsed)) : 1;
+        setSerialDilutionState({
+            stepCount: bounded,
+            customStepInputs: resizeCustomStepInputs(safeCustomStepInputs, bounded),
+        });
+    };
+
+    const updateReplicates = (nextRaw: string) => {
+        const parsed = Number.parseInt(nextRaw, 10);
+        const bounded = Number.isFinite(parsed) ? Math.max(1, parsed) : 1;
+        setSerialDilutionState({ replicates: bounded });
+    };
+
+    const updateCustomInput = (index: number, nextValue: string) => {
+        const nextInputs = [...safeCustomStepInputs];
+        nextInputs[index] = nextValue;
+        setSerialDilutionState({ customStepInputs: nextInputs });
+    };
 
     const handleCopyProtocol = async () => {
         if (plan.steps.length === 0) {
@@ -541,6 +516,140 @@ export default function SerialDilutionCalculator() {
         push("CSV exported.", "success");
     };
 
+    const handlePrintInstructions = (manualName?: string) => {
+        if (plan.steps.length === 0) {
+            push("No instructions to print yet.", "info");
+            return;
+        }
+
+        try {
+            const doc = new jsPDF();
+            const parsedDispenseVolume = Number.parseFloat(serialDilutionState.finalVolume);
+            const dispenseVolumePerDestination =
+                Number.isFinite(parsedDispenseVolume) && parsedDispenseVolume > 0
+                    ? parsedDispenseVolume
+                    : null;
+            const timestamp = new Date();
+            const generatedAt = `${timestamp.toLocaleDateString()} ${timestamp.toLocaleTimeString()}`;
+            const reportTitle = (manualName ?? "").trim() || "Serial Dilution Instructions";
+
+            doc.setFontSize(20);
+            doc.setTextColor(40);
+            doc.text(sanitizePdfText(reportTitle), 14, 18);
+
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Generated: ${generatedAt}`, 14, 24);
+
+            doc.setFontSize(11);
+            doc.setTextColor(55);
+            const summaryLines = [
+                `Mode: ${safeMode === "auto" ? "Auto" : "Custom"}`,
+                `Input type: ${safeSeriesType === "dilution" ? "Dilutions" : "Concentrations"}`,
+                `Stock: ${serialDilutionState.stockConcentration} ${serialDilutionState.concentrationUnit}`,
+                `Start: ${serialDilutionState.startConcentration} ${serialDilutionState.concentrationUnit}`,
+                safeAutoStopMode === "target"
+                    ? `Target: ${serialDilutionState.targetConcentration} ${serialDilutionState.targetConcentrationUnit}`
+                    : `Step count: ${safeStepCount}`,
+                `Volume per step: ${serialDilutionState.finalVolume} ${serialDilutionState.volumeUnit}`,
+                `Replicates: ${safeReplicates} | Overage: ${safeOveragePercent}%`,
+                `Blank row: ${serialDilutionState.includeBlank ? "Included" : "Not included"}`,
+            ].map(sanitizePdfText);
+
+            let y = 32;
+            for (const line of summaryLines) {
+                doc.text(line, 14, y);
+                y += 5;
+            }
+
+            const instructionLines = [
+                "General instructions:",
+                "1. Label tubes/containers according to the Step column.",
+                "2. Add diluent first, then add transfer volume from the previous solution.",
+                "3. Mix thoroughly after each step before moving to the next one.",
+                "4. Use calibrated pipettes matching the reported volumes.",
+                "5. Transfer + diluent per row already includes enough volume to dispense and seed the next dilution.",
+            ].map(sanitizePdfText);
+
+            y += 2;
+            for (const line of instructionLines) {
+                doc.text(line, 14, y);
+                y += 5;
+            }
+
+            const tableRows = plan.steps.map((row) => {
+                const stepLabel = row.isPreparation ? "0 (PRE-DILUTION)" : row.stepLabel;
+                const stepDisplay = row.isBlank ? "Blank" : `Step ${stepLabel}`;
+                const instruction = buildStepInstruction(
+                    row,
+                    serialDilutionState.volumeUnit,
+                    serialDilutionState.concentrationUnit,
+                    dispenseVolumePerDestination
+                );
+                const toDisplay = row.isBlank
+                    ? "BLANK"
+                    : formatConcentration(row.toConcentration ?? 0, serialDilutionState.concentrationUnit);
+                const cumulative = row.cumulativeFactor === null ? "-" : `1:${formatNumber(row.cumulativeFactor, 5)}`;
+
+                return [
+                    sanitizePdfText(stepDisplay),
+                    sanitizePdfText(instruction),
+                    sanitizePdfText(toDisplay),
+                    sanitizePdfText(cumulative),
+                ];
+            });
+
+            autoTable(doc, {
+                startY: y + 2,
+                head: [["Step", "Instruction", "Result", "Cumulative"]],
+                body: tableRows,
+                styles: {
+                    fontSize: 9,
+                    cellPadding: 2.5,
+                },
+                columnStyles: {
+                    1: { cellWidth: 105 },
+                },
+                headStyles: {
+                    fillColor: [44, 62, 80],
+                    textColor: [255, 255, 255],
+                    fontStyle: "bold",
+                },
+                alternateRowStyles: {
+                    fillColor: [247, 250, 252],
+                },
+                margin: { left: 14, right: 14 },
+                theme: "grid",
+            });
+
+            const footerY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? y + 50;
+            doc.setFontSize(9);
+            doc.setTextColor(110);
+            doc.text(
+                sanitizePdfText("Tip: PRE-DILUTION (Step 0) is independent from the repeated dilution factor."),
+                14,
+                footerY + 8
+            );
+
+            doc.autoPrint();
+            const blobUrl = doc.output("bloburl");
+            const printWindow = window.open(blobUrl, "_blank");
+            if (!printWindow) {
+                const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+                const fileBase = reportTitle
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-+|-+$/g, "")
+                    || "serial-dilution-instructions";
+                doc.save(`${fileBase}-${stamp}.pdf`);
+            }
+
+            push("Print-ready instructions generated.", "success");
+        } catch {
+            push("Could not generate printable instructions.", "error");
+        }
+    };
+
     return (
         <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center space-y-2">
@@ -548,35 +657,94 @@ export default function SerialDilutionCalculator() {
                     Serial Dilution Planner
                 </h2>
                 <p className="text-xs text-zinc-500">
-                    Build either an automatic dilution series or a custom ratio sequence (for example <span className="font-mono text-zinc-400">1:2, 1:4, 1:2</span>).
+                    Build serial workflows with either dilution factors or direct concentration targets.
                 </p>
             </div>
 
             <section className="glass-card p-4 sm:p-6 space-y-4">
-                <div className="flex items-center gap-2 p-1 rounded-xl bg-white/5 border border-white/10 w-fit">
-                    <button
-                        onClick={() => setSerialDilutionState({ mode: "auto" })}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-                            mode === "auto" ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25" : "text-zinc-400 hover:text-zinc-200"
-                        }`}
-                    >
-                        Auto
-                    </button>
-                    <button
-                        onClick={() => setSerialDilutionState({ mode: "custom" })}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-                            mode === "custom" ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25" : "text-zinc-400 hover:text-zinc-200"
-                        }`}
-                    >
-                        Custom
-                    </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 p-1 rounded-xl bg-white/5 border border-white/10 w-fit">
+                        <button
+                            onClick={() => setSerialDilutionState({ mode: "auto" })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                safeMode === "auto"
+                                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                                    : "text-zinc-400 hover:text-zinc-200"
+                            }`}
+                        >
+                            Auto
+                        </button>
+                        <button
+                            onClick={() =>
+                                setSerialDilutionState({
+                                    mode: "custom",
+                                    customStepInputs: resizeCustomStepInputs(safeCustomStepInputs, safeStepCount),
+                                })
+                            }
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                safeMode === "custom"
+                                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                                    : "text-zinc-400 hover:text-zinc-200"
+                            }`}
+                        >
+                            Custom
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-1 rounded-xl bg-white/5 border border-white/10 w-fit">
+                        <button
+                            onClick={() => setSerialDilutionState({ seriesType: "dilution" })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                safeSeriesType === "dilution"
+                                    ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/25"
+                                    : "text-zinc-400 hover:text-zinc-200"
+                            }`}
+                        >
+                            Dilutions
+                        </button>
+                        <button
+                            onClick={() => setSerialDilutionState({ seriesType: "concentration" })}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                safeSeriesType === "concentration"
+                                    ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/25"
+                                    : "text-zinc-400 hover:text-zinc-200"
+                            }`}
+                        >
+                            Concentrations
+                        </button>
+                    </div>
+
+                    {safeMode === "auto" && (
+                        <div className="flex items-center gap-2 p-1 rounded-xl bg-white/5 border border-white/10 w-fit">
+                            <button
+                                onClick={() => setSerialDilutionState({ autoStopMode: "target" })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                    safeAutoStopMode === "target"
+                                        ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
+                                        : "text-zinc-400 hover:text-zinc-200"
+                                }`}
+                            >
+                                Final Conc
+                            </button>
+                            <button
+                                onClick={() => setSerialDilutionState({ autoStopMode: "steps" })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                    safeAutoStopMode === "steps"
+                                        ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
+                                        : "text-zinc-400 hover:text-zinc-200"
+                                }`}
+                            >
+                                Steps
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
                     <ValueUnitInput
                         label="Stock Concentration"
-                        value={stockConcentration ?? ""}
-                        unit={concentrationUnit}
+                        value={serialDilutionState.stockConcentration}
+                        unit={serialDilutionState.concentrationUnit}
                         onValueChange={(value) => setSerialDilutionState({ stockConcentration: value })}
                         onUnitChange={(unit) => setSerialDilutionState({ concentrationUnit: unit })}
                         options={CONC_OPTS}
@@ -584,147 +752,246 @@ export default function SerialDilutionCalculator() {
                     />
 
                     <ValueUnitInput
-                        label="Start Concentration (First Curve Step)"
-                        value={startConcentration}
-                        unit={concentrationUnit}
+                        label="Start Concentration"
+                        value={serialDilutionState.startConcentration}
+                        unit={serialDilutionState.concentrationUnit}
                         onValueChange={(value) => setSerialDilutionState({ startConcentration: value })}
                         onUnitChange={(unit) => setSerialDilutionState({ concentrationUnit: unit })}
                         options={CONC_OPTS}
                         placeholder="100"
                     />
 
-                    <ValueUnitInput
-                        label={mode === "auto" ? "Target Concentration" : "Reference Concentration"}
-                        value={targetConcentration}
-                        unit={concentrationUnit}
-                        onValueChange={(value) => setSerialDilutionState({ targetConcentration: value })}
-                        onUnitChange={(unit) => setSerialDilutionState({ concentrationUnit: unit })}
-                        options={CONC_OPTS}
-                        placeholder={mode === "auto" ? "1" : "Optional in custom mode"}
-                        disabled={mode !== "auto"}
-                    />
+                    {safeMode === "auto" && safeAutoStopMode === "target" && (
+                        <ValueUnitInput
+                            label="Final Concentration Target"
+                            value={serialDilutionState.targetConcentration}
+                            unit={serialDilutionState.targetConcentrationUnit}
+                            onValueChange={(value) => setSerialDilutionState({ targetConcentration: value })}
+                            onUnitChange={(unit) => setSerialDilutionState({ targetConcentrationUnit: unit })}
+                            options={CONC_OPTS}
+                            placeholder="1"
+                        />
+                    )}
 
                     <ValueUnitInput
-                        label="Final Volume Per Step"
-                        value={finalVolume}
-                        unit={volumeUnit}
+                        label="Volume Per Step"
+                        value={serialDilutionState.finalVolume}
+                        unit={serialDilutionState.volumeUnit}
                         onValueChange={(value) => setSerialDilutionState({ finalVolume: value })}
                         onUnitChange={(unit) => setSerialDilutionState({ volumeUnit: unit })}
                         options={VOL_OPTS}
                         placeholder="1"
                     />
 
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Replicates & Safety</label>
-                        <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-3">
+                        <label className="block text-xs font-bold text-zinc-500 uppercase">Replicates & Overage</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:items-end">
                             <div className="space-y-1">
-                                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Replicates</label>
-                                <input
-                                    type="number"
-                                    min={1}
-                                    step={1}
-                                    value={safeReplicates}
-                                    onChange={(e) => setSerialDilutionState({ replicates: Number.parseInt(e.target.value, 10) || 0 })}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
-                                />
+                                <label className="block text-[10px] text-zinc-500 uppercase tracking-wider">Replicates</label>
+                                <div className="inline-flex h-12 items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+                                    <button
+                                        type="button"
+                                        aria-label="Decrease replicates"
+                                        onClick={() => updateReplicates(String(safeReplicates - 1))}
+                                        className="px-2.5 py-1.5 rounded-lg text-sm font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                                    >
+                                        -
+                                    </button>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        step={1}
+                                        value={safeReplicates}
+                                        onChange={(e) => updateReplicates(e.target.value)}
+                                        className="w-[6ch] h-full text-center bg-transparent border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                    />
+                                    <button
+                                        type="button"
+                                        aria-label="Increase replicates"
+                                        onClick={() => updateReplicates(String(safeReplicates + 1))}
+                                        className="px-2.5 py-1.5 rounded-lg text-sm font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Extra Samples</label>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    step={1}
-                                    value={safeExtraSamples}
-                                    onChange={(e) => setSerialDilutionState({ extraSamples: Number.parseInt(e.target.value, 10) || 0 })}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] text-zinc-500 uppercase tracking-wider">Overage</label>
+                                <label className="block text-[10px] text-zinc-500 uppercase tracking-wider">Overage</label>
                                 <select
                                     value={String(safeOveragePercent)}
-                                    onChange={(e) => setSerialDilutionState({ overagePercent: Number.parseInt(e.target.value, 10) || 0 })}
-                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                    onChange={(e) =>
+                                        setSerialDilutionState({
+                                            overagePercent: Number.parseInt(e.target.value, 10) || 0,
+                                        })
+                                    }
+                                    className="w-full h-12 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
                                 >
                                     <option value="0" className="bg-zinc-900">0%</option>
+                                    <option value="5" className="bg-zinc-900">5%</option>
                                     <option value="10" className="bg-zinc-900">10%</option>
-                                    <option value="15" className="bg-zinc-900">15%</option>
+                                    <option value="20" className="bg-zinc-900">20%</option>
                                 </select>
                             </div>
                         </div>
                         <p className="text-[11px] text-zinc-500">
-                            Prepared per step = per-sample volume × (replicates + extra samples) × (1 + overage).
+                            Prepared total/step = per-sample volume × (replicates + overage of one replicate).
                         </p>
                     </div>
 
-                    <div className="space-y-1">
-                        <label className="text-xs font-bold text-zinc-500 uppercase">Minimum Pipettable Volume</label>
-                        <select
-                            value={String(safeMinPipetteVolumeUl)}
-                            onChange={(e) => setSerialDilutionState({ minPipetteVolumeUl: Number.parseFloat(e.target.value) })}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40"
+                    <div className="space-y-2 self-start">
+                        <div className="flex items-center justify-between gap-2">
+                            <label className="block text-xs font-bold text-zinc-500 uppercase">Blank Step</label>
+                            <span
+                                className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border ${
+                                    serialDilutionState.includeBlank
+                                        ? "text-cyan-200 border-cyan-400/40 bg-cyan-500/20"
+                                        : "text-zinc-400 border-white/10 bg-white/5"
+                                }`}
+                            >
+                                Blank: {serialDilutionState.includeBlank ? "On" : "Off"}
+                            </span>
+                        </div>
+                        <div
+                            className="inline-flex h-12 items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10"
+                            role="group"
+                            aria-label="Blank step toggle"
                         >
-                            <option value="0.001" className="bg-zinc-900">0.001 μL (P2.5)</option>
-                            <option value="0.01" className="bg-zinc-900">0.01 μL (P10)</option>
-                            <option value="0.02" className="bg-zinc-900">0.02 μL (P20)</option>
-                            <option value="0.2" className="bg-zinc-900">0.2 μL (P200)</option>
-                            <option value="1" className="bg-zinc-900">1 μL (P1000)</option>
-                        </select>
-                        <p className="text-[11px] text-zinc-500">Step transfer volumes are rounded to this practical pipetting resolution.</p>
+                            <button
+                                type="button"
+                                aria-pressed={!serialDilutionState.includeBlank}
+                                onClick={() => setSerialDilutionState({ includeBlank: false })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                    !serialDilutionState.includeBlank
+                                        ? "bg-zinc-600 text-white shadow-lg shadow-zinc-500/20"
+                                        : "text-zinc-400 hover:text-zinc-200"
+                                }`}
+                            >
+                                No Blank
+                            </button>
+                            <button
+                                type="button"
+                                aria-pressed={serialDilutionState.includeBlank}
+                                onClick={() => setSerialDilutionState({ includeBlank: true })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                                    serialDilutionState.includeBlank
+                                        ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/25"
+                                        : "text-zinc-400 hover:text-zinc-200"
+                                }`}
+                            >
+                                Add Blank
+                            </button>
+                        </div>
+                        <p className="text-[11px] text-zinc-500">
+                            {serialDilutionState.includeBlank
+                                ? "A final BLANK row will be added using full prepared diluent volume."
+                                : "No BLANK row will be added to the final plan."}
+                        </p>
                     </div>
 
-                    {mode === "auto" ? (
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-zinc-500 uppercase">Dilution Factor</label>
+                    {safeMode === "auto" && safeSeriesType === "dilution" && (
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold text-zinc-500 uppercase">Auto Dilution Factor</label>
                             <input
-                                value={autoRatio}
-                                onChange={(e) => setSerialDilutionState({ autoRatio: e.target.value })}
+                                value={serialDilutionState.autoDilutionFactor}
+                                onChange={(e) => setSerialDilutionState({ autoDilutionFactor: e.target.value })}
                                 placeholder="1:10"
                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40"
                             />
-                            <label className="inline-flex items-center gap-2 text-xs text-zinc-400">
-                                <input
-                                    type="checkbox"
-                                    checked={exactLastStep}
-                                    onChange={(e) => setSerialDilutionState({ exactLastStep: e.target.checked })}
-                                    className="h-3.5 w-3.5 rounded border-white/20 bg-white/5"
-                                />
-                                Adjust the last step to hit target concentration exactly.
-                            </label>
-                            <p className="text-[11px] text-zinc-500">Accepted dilution formats: <span className="font-mono">1:10</span>, <span className="font-mono">x4</span>, <span className="font-mono">4</span>.</p>
+                            <p className="text-[11px] text-zinc-500">
+                                Accepted formats: <span className="font-mono">1:10</span>, <span className="font-mono">x4</span>, <span className="font-mono">4</span>.
+                            </p>
                         </div>
-                    ) : (
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-zinc-500 uppercase">Custom Dilution Sequence</label>
-                            <textarea
-                                value={customRatios}
-                                onChange={(e) => setSerialDilutionState({ customRatios: e.target.value })}
-                                rows={3}
-                                placeholder="1:2, 1:4, 1:2"
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40 resize-none"
-                            />
-                            <p className="text-[11px] text-zinc-500">Each step accepts <span className="font-mono">1:2</span>, <span className="font-mono">x2</span>, or <span className="font-mono">2</span>. Separate by comma, semicolon, new line, or space.</p>
+                    )}
+
+                    {safeMode === "auto" && safeSeriesType === "concentration" && (
+                        <ValueUnitInput
+                            label="Concentration Step"
+                            value={serialDilutionState.autoConcentrationStep}
+                            unit={serialDilutionState.concentrationUnit}
+                            onValueChange={(value) => setSerialDilutionState({ autoConcentrationStep: value })}
+                            onUnitChange={(unit) => setSerialDilutionState({ concentrationUnit: unit })}
+                            options={CONC_OPTS}
+                            placeholder="10"
+                        />
+                    )}
+
+                    {(safeMode === "custom" || safeAutoStopMode === "steps") && (
+                        <div className="space-y-2 self-start">
+                            <label className="block text-xs font-bold text-zinc-500 uppercase">Number of Steps</label>
+                            <div className="inline-flex h-12 items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+                                <button
+                                    type="button"
+                                    aria-label="Decrease steps"
+                                    onClick={() => updateStepCount(String(safeStepCount - 1))}
+                                    className="px-2.5 py-1.5 rounded-lg text-sm font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                                >
+                                    -
+                                </button>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={200}
+                                    step={1}
+                                    value={safeStepCount}
+                                    onChange={(e) => updateStepCount(e.target.value)}
+                                    className="w-[6ch] h-full text-center bg-transparent border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                />
+                                <button
+                                    type="button"
+                                    aria-label="Increase steps"
+                                    onClick={() => updateStepCount(String(safeStepCount + 1))}
+                                    className="px-2.5 py-1.5 rounded-lg text-sm font-bold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                                >
+                                    +
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
 
-                {plan.errors.length > 0 && (
-                    <div className="flex items-start gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/20 p-3 rounded-lg">
-                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        <div className="space-y-1">
-                            {plan.errors.map((error) => (
-                                <p key={error}>{error}</p>
+                {safeMode === "custom" && (
+                    <div className="space-y-3 border border-white/10 rounded-xl p-3 sm:p-4 bg-white/5">
+                        <div className="flex items-center justify-between gap-2">
+                            <label className="text-xs font-bold text-zinc-500 uppercase">
+                                Custom Step Inputs ({safeSeriesType === "dilution" ? "Dilutions" : "Concentrations"})
+                            </label>
+                            <span className="text-[11px] text-zinc-500">{safeStepCount} step(s)</span>
+                        </div>
+                        <div className="space-y-2">
+                            {safeCustomStepInputs.map((value, index) => (
+                                <div key={`custom-step-${index + 1}`} className="flex items-center gap-3">
+                                    <label className="text-sm font-medium text-zinc-300 min-w-[4.5rem]">
+                                        Step {index + 1}
+                                    </label>
+                                    <input
+                                        value={value}
+                                        onChange={(e) => updateCustomInput(index, e.target.value)}
+                                        onBlur={(e) => {
+                                            if (safeSeriesType === "dilution") {
+                                                updateCustomInput(index, normalizeCustomDilutionToken(e.target.value));
+                                                return;
+                                            }
+                                            updateCustomInput(
+                                                index,
+                                                normalizeCustomConcentrationToken(
+                                                    e.target.value,
+                                                    serialDilutionState.concentrationUnit
+                                                )
+                                            );
+                                        }}
+                                        className="w-[12ch] max-w-[12ch] bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                    />
+                                </div>
                             ))}
                         </div>
                     </div>
                 )}
-                {plan.steps.length > 0 && (pipetteAdjustedSteps > 0 || belowMinSteps > 0) && (
-                    <div className="flex items-start gap-2 text-sm text-amber-300 bg-amber-400/10 border border-amber-400/20 p-3 rounded-lg">
-                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        <p>
-                            Rounded {pipetteAdjustedSteps} step(s) to the selected pipetting resolution ({formatNumber(minPipetteVolumeUl)} μL).
-                            {belowMinSteps > 0 ? ` ${belowMinSteps} step(s) were below the minimum and clamped.` : ""}
-                        </p>
+
+                {plan.errors.length > 0 && (
+                    <div className="text-sm text-red-400 bg-red-400/10 border border-red-400/20 p-3 rounded-lg space-y-1">
+                        {plan.errors.map((error) => (
+                            <p key={error}>{error}</p>
+                        ))}
                     </div>
                 )}
             </section>
@@ -736,7 +1003,11 @@ export default function SerialDilutionCalculator() {
                         Step Plan
                     </h3>
                     <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-zinc-500 uppercase tracking-wider">{plan.steps.length} step(s)</span>
+                        <span className="text-[11px] text-zinc-500 uppercase tracking-wider">
+                            {mainStepCount} step(s)
+                            {hasPreparation ? " + PRE" : ""}
+                            {hasBlank ? " + BLANK" : ""}
+                        </span>
                         <button
                             onClick={handleCopyProtocol}
                             disabled={plan.steps.length === 0}
@@ -753,15 +1024,28 @@ export default function SerialDilutionCalculator() {
                             <Download className="h-3.5 w-3.5" />
                             CSV
                         </button>
+                        <button
+                            onClick={() => setIsPrintModalOpen(true)}
+                            disabled={plan.steps.length === 0}
+                            className="secondary px-2.5 py-1.5 text-[11px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Printer className="h-3.5 w-3.5" />
+                            Print Instructions
+                        </button>
                     </div>
                 </div>
 
                 {plan.steps.length === 0 ? (
                     <div className="text-sm text-zinc-500 italic py-6 text-center border border-dashed border-white/10 rounded-xl">
-                        Add valid inputs to generate a dilution series.
+                        Add valid inputs to generate a serial plan.
                     </div>
                 ) : (
                     <>
+                        {hasPreparation && (
+                            <div className="text-xs text-cyan-300 bg-cyan-500/10 border border-cyan-400/25 p-3 rounded-lg">
+                                Step 0 prepares Start from Stock (ratio = Stock/Start), independent of the auto dilution factor.
+                            </div>
+                        )}
                         <div className="overflow-x-auto rounded-xl border border-white/10">
                             <table className="w-full min-w-[780px] text-sm">
                                 <thead className="bg-white/5 text-zinc-400 text-xs uppercase tracking-wider">
@@ -777,28 +1061,42 @@ export default function SerialDilutionCalculator() {
                                 </thead>
                                 <tbody>
                                     {plan.steps.map((row) => (
-                                        <tr key={row.step} className="border-t border-white/5 text-zinc-300">
-                                            <td className="px-3 py-2 font-mono">{row.step}</td>
-                                            <td className="px-3 py-2 font-mono text-indigo-400">{row.ratio}</td>
-                                            <td className="px-3 py-2 font-mono">{formatNumber(row.fromConcentration)} {concentrationUnit}</td>
-                                            <td className="px-3 py-2 font-mono">{formatNumber(row.toConcentration)} {concentrationUnit}</td>
+                                        <tr
+                                            key={row.key}
+                                            className={`border-t ${
+                                                row.isPreparation
+                                                    ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-100"
+                                                    : "border-white/5 text-zinc-300"
+                                            }`}
+                                        >
                                             <td className="px-3 py-2 font-mono">
-                                                {formatVolumeWithAutoUl(row.transferVolume, volumeUnit)}
-                                                {row.adjustedForPipette && (
-                                                    <span className="ml-1 text-[10px] text-zinc-500">
-                                                        (raw {formatVolumeWithAutoUl(row.theoreticalTransferVolume, volumeUnit)})
-                                                    </span>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    <span>{row.stepLabel}</span>
+                                                    {row.isPreparation && (
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-md border border-cyan-300/40 bg-cyan-500/20 text-cyan-100 uppercase tracking-wide">
+                                                            PRE-DILUTION
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className={`px-3 py-2 font-mono ${row.isPreparation ? "text-cyan-200" : "text-indigo-400"}`}>
+                                                {row.ratio}
                                             </td>
                                             <td className="px-3 py-2 font-mono">
-                                                {formatVolumeWithAutoUl(row.diluentVolume, volumeUnit)}
-                                                {row.adjustedForPipette && (
-                                                    <span className="ml-1 text-[10px] text-zinc-500">
-                                                        (raw {formatVolumeWithAutoUl(row.theoreticalDiluentVolume, volumeUnit)})
-                                                    </span>
-                                                )}
+                                                {row.fromConcentration === null
+                                                    ? "-"
+                                                    : formatConcentration(row.fromConcentration, serialDilutionState.concentrationUnit)}
                                             </td>
-                                            <td className="px-3 py-2 font-mono">1:{formatNumber(row.cumulativeFactor, 5)}</td>
+                                            <td className="px-3 py-2 font-mono">
+                                                {row.isBlank
+                                                    ? "BLANK"
+                                                    : formatConcentration(row.toConcentration ?? 0, serialDilutionState.concentrationUnit)}
+                                            </td>
+                                            <td className="px-3 py-2 font-mono">{formatVolume(row.transferVolume, serialDilutionState.volumeUnit)}</td>
+                                            <td className="px-3 py-2 font-mono">{formatVolume(row.diluentVolume, serialDilutionState.volumeUnit)}</td>
+                                            <td className="px-3 py-2 font-mono">
+                                                {row.cumulativeFactor === null ? "-" : `1:${formatNumber(row.cumulativeFactor, 5)}`}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -808,32 +1106,32 @@ export default function SerialDilutionCalculator() {
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
                                 <p className="text-[10px] uppercase tracking-wider text-zinc-500">Stock Needed</p>
-                                <p className="mt-1 text-base font-mono text-white">{formatVolumeWithAutoUl(plan.stockNeeded, volumeUnit)}</p>
+                                <p className="mt-1 text-base font-mono text-white">
+                                    {formatVolume(plan.stockNeeded, serialDilutionState.volumeUnit)}
+                                </p>
                             </div>
                             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
                                 <p className="text-[10px] uppercase tracking-wider text-zinc-500">Total Diluent</p>
-                                <p className="mt-1 text-base font-mono text-white">{formatVolumeWithAutoUl(plan.totalDiluent, volumeUnit)}</p>
+                                <p className="mt-1 text-base font-mono text-white">
+                                    {formatVolume(plan.totalDiluent, serialDilutionState.volumeUnit)}
+                                </p>
                             </div>
                             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                                <p className="text-[10px] uppercase tracking-wider text-zinc-500">Prepared / Step</p>
-                                <p className="mt-1 text-base font-mono text-white">{formatVolumeWithAutoUl(plan.preparedVolumePerStep ?? 0, volumeUnit)}</p>
-                                <p className="text-[10px] text-zinc-500 mt-1">{plan.aliquotCount} sample-equivalents</p>
+                                <p className="text-[10px] uppercase tracking-wider text-zinc-500">Prepared Total / Step</p>
+                                <p className="mt-1 text-base font-mono text-white">
+                                    {formatVolume(plan.preparedVolumePerStep ?? 0, serialDilutionState.volumeUnit)}
+                                </p>
+                                <p className="text-[10px] text-zinc-500 mt-1">{plan.aliquotCount} replicate(s)</p>
                             </div>
                             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
                                 <p className="text-[10px] uppercase tracking-wider text-zinc-500">Final Concentration</p>
-                                <p className="mt-1 text-base font-mono text-white">{formatNumber(plan.finalConcentration ?? 0)} {concentrationUnit}</p>
+                                <p className="mt-1 text-base font-mono text-white">
+                                    {formatConcentration(plan.finalConcentration ?? 0, serialDilutionState.concentrationUnit)}
+                                </p>
                             </div>
                             <div className="p-3 rounded-xl bg-white/5 border border-white/10">
                                 <p className="text-[10px] uppercase tracking-wider text-zinc-500">Target Check</p>
-                                <p className={`mt-1 text-base font-mono ${mode === "auto" && plan.targetReached ? "text-emerald-400" : "text-zinc-300"}`}>
-                                    {mode === "auto"
-                                        ? plan.targetExact
-                                            ? "Exact"
-                                            : plan.targetReached
-                                                ? "Reached"
-                                                : `>${formatNumber(plan.target ?? 0)} ${concentrationUnit}`
-                                        : "Custom"}
-                                </p>
+                                <p className="mt-1 text-base font-mono text-zinc-300">{targetStatus}</p>
                             </div>
                         </div>
                     </>
@@ -843,9 +1141,68 @@ export default function SerialDilutionCalculator() {
             <section className="glass-card p-4 sm:p-5 text-xs text-zinc-500 flex items-start gap-3">
                 <ArrowRightLeft className="h-4 w-4 text-indigo-400 mt-0.5 shrink-0" />
                 <p>
-                    This planner assumes each step is prepared from the previous step at the same volume and now supports replicates, extra samples, and safety overage. If you want plate layouts or branching trees, we can add that next.
+                    This planner assumes each dilution step is prepared from the previous concentration at a constant
+                    final volume. Custom mode lets you define every step directly.
                 </p>
             </section>
+
+            {isPrintModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setIsPrintModalOpen(false)}
+                    />
+                    <div className="relative glass-card !p-6 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">
+                                <Printer className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-white">Print Instructions</h3>
+                                <p className="text-zinc-400 text-sm">Enter a title for the print-ready PDF (optional)</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Document Title</label>
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    value={instructionsExportName}
+                                    onChange={(e) => setInstructionsExportName(e.target.value)}
+                                    placeholder="Serial Dilution Instructions"
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            handlePrintInstructions(instructionsExportName);
+                                            setIsPrintModalOpen(false);
+                                        }
+                                    }}
+                                    className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-xl px-4 py-3 outline-none transition-all text-white placeholder:text-white/30"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => setIsPrintModalOpen(false)}
+                                    className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/5 transition-all text-sm font-bold"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handlePrintInstructions(instructionsExportName);
+                                        setIsPrintModalOpen(false);
+                                    }}
+                                    className="flex-1 px-4 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all text-sm font-bold shadow-lg shadow-indigo-500/20"
+                                >
+                                    Print PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

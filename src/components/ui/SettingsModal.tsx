@@ -3,6 +3,7 @@
 import { useStore } from "@/store/useStore";
 import { X, Trash2, Info, ShieldCheck, Database } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { APP_VERSION } from "@/lib/appMeta";
 
 export function SettingsModal() {
     const { 
@@ -189,11 +190,11 @@ export function SettingsModal() {
                                 <div className="glass-card p-6 border-white/5">
                                     <div className="flex items-center justify-between mb-4">
                                         <span className="text-sm font-medium text-zinc-400">Version</span>
-                                        <span className="text-xs font-mono bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded-md border border-indigo-500/20">v1.0.0</span>
+                                        <span className="text-xs font-mono bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded-md border border-indigo-500/20">v{APP_VERSION}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm font-medium text-zinc-400">Build ID</span>
-                                        <span className="text-[10px] font-mono text-zinc-600">PRODUCTION_STABLE</span>
+                                        <span className="text-[10px] font-mono text-zinc-600">release-{APP_VERSION}</span>
                                     </div>
                                 </div>
                                 <div className="flex gap-4">

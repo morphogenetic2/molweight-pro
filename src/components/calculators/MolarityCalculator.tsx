@@ -6,7 +6,7 @@ import { Search, Loader2, Scale, Beaker, Pipette, Atom, ArrowRightLeft, Lock } f
 import { lookupPubChem } from "@/lib/api";
 import { tryCalculateMw } from "@/lib/parser";
 import { FormulaBadge } from "../ui/FormulaBadge";
-import { Solver, denormalize } from "@/lib/chemistry/converter";
+import { Solver, denormalize, normalize } from "@/lib/chemistry/converter";
 import { MASS_UNITS, VOLUME_UNITS, MOLAR_UNITS, MASS_CONC_UNITS, PERCENT_UNITS, convertUnitValue } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "../ui/ValueUnitInput";
 import type { MolarityState } from "@/store/storeTypes";
@@ -136,29 +136,16 @@ export default function MolarityCalculator() {
                 updateState('concentration', concVal);
             }
         } else if (target === 'mw') {
-            // Logic for MW solver wasn't in Solver object yet?
-            // "Mass = Conc * Vol * MW" => MW = Mass / (ConcM * VolL)
-            // I'll implement it inline or quick-add to solver later. 
-            // For now inline using imported converters.
-            // Actually let's use the old reliable approach for just this one to be safe,
-            // or better: 
-            // MW is dimensionless-ish (g/mol).
-            if (m > 0 && v > 0 && c > 0) {
-                // Convert all to base
-                // But wait, "c" depends on MW if it's molar? No, if it's MassConc (g/L) it doesn't.
-                // If "c" is Molar, then MW is involved.
-                // If "c" is g/L, MW is NOT involved in the relation (Mass = Conc * Vol). MW is irrelevant.
-                // So we can only solve for MW if Conc is Molar (or deriving from Molar).
-                // Logic: Mass(g) = M(mol/L) * Vol(L) * MW.
-                // MW = Mass(g) / (M * Vol(L)).
+            if (m > 0 && v > 0 && c > 0 && MOLAR_UNITS[concUnit]) {
+                const massG = normalize(m, massUnit);
+                const volumeL = normalize(v, volUnit);
+                const concentrationM = normalize(c, concUnit);
+                const denominator = concentrationM * volumeL;
 
-                // If unit is g/L, then Mass = g/L * L. MW cancels out.
-                // So we check if concUnit is molar.
-                if (MOLAR_UNITS[concUnit]) {
-                    // NOTE: MW solving for mass concentration isn't supported yet.
+                if (Number.isFinite(denominator) && denominator > 0) {
+                    updateState('mw', massG / denominator);
                 }
             }
-            // Skipping MW solvability in this pass to minimize risk, users rarely solve for MW here (it's usually an input).
         }
 
     }, [molarityState, setMolarityState]);
@@ -232,6 +219,8 @@ export default function MolarityCalculator() {
     };
 
     const isTarget = (t: MolarityState["target"]) => molarityState.target === t;
+    const mwSolveRequiresMolarUnit = !Boolean(MOLAR_UNITS[molarityState.concUnit]);
+    const mwSolveMissingInputs = num(molarityState.mass) <= 0 || num(molarityState.volume) <= 0 || num(molarityState.concentration) <= 0;
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -282,7 +271,7 @@ export default function MolarityCalculator() {
             <div className="glass-card p-6 space-y-6 relative overflow-hidden">
 
                 {/* MW Row */}
-                <div className={`p-3 rounded-xl transition-all ${isTarget('mw') ? 'bg-indigo-500/10 border border-indigo-500/20' : 'bg-white/5 border border-white/5'}`}>
+                <div className={`p-3 rounded-xl transition-all ${isTarget('mw') ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
                     <div className="flex items-center gap-4">
                         <div className="p-2 rounded-lg bg-zinc-900 text-zinc-400"><Atom className="h-5 w-5" /></div>
                         <div className="flex-1">
@@ -290,6 +279,8 @@ export default function MolarityCalculator() {
                             <div className="flex items-center gap-2">
                                 <input
                                     type="number"
+                                    aria-label="Molecular weight"
+                                    data-testid="molarity-mw-input"
                                     value={molarityState.mw || ""}
                                     onChange={(e) => update('mw', e.target.value)}
                                     onBlur={(e) => {
@@ -298,15 +289,30 @@ export default function MolarityCalculator() {
                                             update('mw', val.toFixed(2));
                                         }
                                     }}
+                                    readOnly={isTarget('mw')}
                                     placeholder="0.00"
-                                    className="w-full bg-transparent border-none text-lg font-mono focus:ring-0 p-0 text-white"
+                                    className={`w-full bg-transparent border-none text-lg font-mono focus:ring-0 p-0 ${isTarget('mw') ? 'text-emerald-400 font-bold' : 'text-white'}`}
                                 />
                                 <span className="text-sm text-zinc-500">g/mol</span>
                             </div>
                             {mwMissingForMolar && (
                                 <p className="text-[11px] text-amber-500 mt-1">MW required for molar concentrations.</p>
                             )}
+                            {isTarget('mw') && mwSolveMissingInputs && (
+                                <p className="text-[11px] text-amber-500 mt-1">Enter mass, concentration, and volume to calculate MW.</p>
+                            )}
+                            {isTarget('mw') && !mwSolveMissingInputs && mwSolveRequiresMolarUnit && (
+                                <p className="text-[11px] text-amber-500 mt-1">MW solve requires a molar concentration unit (M, mM, μM, nM).</p>
+                            )}
                         </div>
+                        <button
+                            onClick={() => setMolarityState({ target: 'mw' })}
+                            aria-label="Solve for molecular weight"
+                            data-testid="molarity-target-mw"
+                            className={`p-2 rounded-lg transition-colors ${isTarget('mw') ? 'text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
+                        >
+                            <Lock className={`h-4 w-4 ${isTarget('mw') ? 'fill-current' : ''}`} />
+                        </button>
                     </div>
                 </div>
 

@@ -5,7 +5,7 @@ import { useStore } from "@/store/useStore";
 import type { Solute } from "@/store/storeTypes";
 import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker, Printer } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
-import { formatMass, formatVolume, formatConcentration, parseFormula, calculateMw, getUnitLabel, tryCalculateMw } from "@/lib/parser";
+import { formatMass, formatVolume, formatConcentration, getUnitLabel, tryCalculateMw } from "@/lib/parser";
 import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
 import { lookupPubChem } from "@/lib/api";
 import { useDebounce } from "@/lib/hooks/useDebounce";

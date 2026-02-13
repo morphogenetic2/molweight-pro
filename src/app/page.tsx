@@ -27,7 +27,6 @@ import MWCalculator from "@/components/calculators/MWCalculator";
 import DilutionCalculator from "@/components/calculators/DilutionCalculator";
 import MolarityCalculator from "@/components/calculators/MolarityCalculator";
 import SerialDilutionCalculator from "@/components/calculators/SerialDilutionCalculator";
-import PlatePlannerCalculator from "@/components/calculators/PlatePlannerCalculator";
 
 import BufferBuilder from "@/components/calculators/BufferBuilder";
 import BufferCalculator from "@/components/calculators/BufferCalculator";
@@ -44,7 +43,6 @@ const TABS: Array<{ id: ActiveTab; label: string; icon: LucideIcon; desc: string
     { id: "mw", label: "Molecular Weight", icon: Table2, desc: "Calculate molar mass from chemical formulas and PubChem lookup" },
     { id: "dilution", label: "Dilution Calculator", icon: Pipette, desc: "C₁V₁ = C₂V₂ calculations for solution preparation" },
     { id: "serial_dilution", label: "Serial Dilution", icon: ArrowRightLeft, desc: "Plan multi-step dilution series with automatic or custom ratios" },
-    { id: "plate_planner", label: "Plate Planner", icon: LayoutGrid, desc: "Plate-first editable dilution/concentration layout with replicate fill tools", badge: "V1" },
     { id: "molarity", label: "Molarity Calculator", icon: Scale, desc: "Solve for Mass, Volume, or Concentration" },
 
     { id: "buffer_calc", label: "Buffer Calculator", icon: Calculator, desc: "Recipes for common biological buffers (Tris, PBS)" },
@@ -373,10 +371,6 @@ export default function Home() {
 
                         {activeTab === "serial_dilution" && (
                             <SerialDilutionCalculator />
-                        )}
-
-                        {activeTab === "plate_planner" && (
-                            <PlatePlannerCalculator />
                         )}
 
                         {activeTab === "molarity" && (

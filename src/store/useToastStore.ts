@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { createId } from "@/lib/id";
 
 export type ToastTone = "success" | "error" | "info";
 
@@ -19,7 +20,7 @@ interface ToastState {
 export const useToastStore = create<ToastState>((set, get) => ({
     toasts: [],
     push: (message, tone = "info", durationMs = 2800) => {
-        const id = Math.random().toString(36).slice(2, 9);
+        const id = createId();
         set((state) => ({ toasts: [...state.toasts, { id, message, tone }] }));
         setTimeout(() => {
             get().remove(id);

@@ -11,6 +11,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Image from "next/image";
 import { Search, Loader2, AlertCircle, Download } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { parseFormula, ChemicalData, normalizeFormula, tryCalculateMw } from "@/lib/parser";
@@ -63,7 +64,6 @@ export default function MWCalculator() {
     const [error, setError] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
     const [imageLoading, setImageLoading] = useState(false);
-    const [imageError, setImageError] = useState(false);
     const requestSeqRef = useRef(0);
     const maxRenderSize = Math.min(400, moleculeSettings.maxRenderSize ?? 320);
 
@@ -83,7 +83,6 @@ export default function MWCalculator() {
             setLoading(true);
             setIsSearchingStructure(true);
             setError(null);
-            setImageError(false);
 
             try {
                 // Attempt 1: Local formula parsing (fast, offline-capable)
@@ -151,6 +150,12 @@ export default function MWCalculator() {
         if (!query) return;
         void runLookup(query, { addHistory: false, showErrors: false });
     }, [debouncedInput, runLookup]);
+
+    useEffect(() => {
+        if (viewMode === "2d" && mwResult?.cid && !hydratedSmiles) {
+            setImageLoading(true);
+        }
+    }, [viewMode, mwResult?.cid, hydratedSmiles]);
 
     /**
      * Handles form submission for molecular weight calculation.
@@ -324,15 +329,14 @@ export default function MWCalculator() {
                                                         <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
                                                     </div>
                                                 )}
-                                                <img
+                                                <Image
                                                     src={`https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${mwResult.cid}/PNG`}
                                                     alt={`2D structure of ${mwResult.name || mwResult.formula}`}
+                                                    width={maxRenderSize}
+                                                    height={maxRenderSize}
                                                     className={`max-h-48 sm:max-h-64 object-contain brightness-110 contrast-125 transition-opacity ${imageLoading || isSearchingStructure ? 'opacity-0' : 'opacity-100'}`}
                                                     onLoad={() => setImageLoading(false)}
-                                                    onError={() => {
-                                                        setImageLoading(false);
-                                                        setImageError(true);
-                                                    }}
+                                                    onError={() => setImageLoading(false)}
                                                 />
                                             </div>
                                         ) : (

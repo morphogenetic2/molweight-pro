@@ -231,7 +231,7 @@ export default function Molecule2D({
         return () => {
             isCancelled = true;
         };
-    }, [smiles, renderWidth, renderHeight, theme, moleculeSettings, atomVisualization]);
+    }, [smiles, renderWidth, renderHeight, theme, moleculeSettings, atomVisualization, forceExplicitHydrogens]);
 
     return (
         <div className="relative w-full h-full flex items-center justify-center min-h-[300px]">

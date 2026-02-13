@@ -43,7 +43,7 @@ export const useStore = create<AppState>()(
         }),
         {
             name: "molweight-storage-v2",
-            version: 4,
+            version: 5,
             migrate: (persistedState: unknown) => {
                 const state = (typeof persistedState === "object" && persistedState !== null
                     ? { ...(persistedState as Record<string, unknown>) }
@@ -128,13 +128,10 @@ export const useStore = create<AppState>()(
                         : {};
 
                 const mode = serialState.mode === "custom" ? "custom" : "auto";
-                const allowedPipetteMinimums = new Set([0.001, 0.01, 0.02, 0.2, 1]);
-                const allowedOveragePercents = new Set([0, 10, 15]);
-                const minPipetteVolumeUl =
-                    typeof serialState.minPipetteVolumeUl === "number" &&
-                    allowedPipetteMinimums.has(serialState.minPipetteVolumeUl)
-                        ? serialState.minPipetteVolumeUl
-                        : DEFAULT_SERIAL_DILUTION.minPipetteVolumeUl;
+                const seriesType =
+                    serialState.seriesType === "concentration" ? "concentration" : "dilution";
+                const autoStopMode = serialState.autoStopMode === "steps" ? "steps" : "target";
+                const allowedOveragePercents = new Set([0, 5, 10, 20]);
                 const overagePercent =
                     typeof serialState.overagePercent === "number" &&
                     allowedOveragePercents.has(serialState.overagePercent)
@@ -146,27 +143,91 @@ export const useStore = create<AppState>()(
                     serialState.replicates >= 1
                         ? serialState.replicates
                         : DEFAULT_SERIAL_DILUTION.replicates;
-                const extraSamples =
-                    typeof serialState.extraSamples === "number" &&
-                    Number.isInteger(serialState.extraSamples) &&
-                    serialState.extraSamples >= 0
-                        ? serialState.extraSamples
-                        : DEFAULT_SERIAL_DILUTION.extraSamples;
+                const stepCount =
+                    typeof serialState.stepCount === "number" &&
+                    Number.isInteger(serialState.stepCount) &&
+                    serialState.stepCount >= 1 &&
+                    serialState.stepCount <= 200
+                        ? serialState.stepCount
+                        : DEFAULT_SERIAL_DILUTION.stepCount;
                 const stockConcentration =
                     typeof serialState.stockConcentration === "string" && serialState.stockConcentration.trim() !== ""
                         ? serialState.stockConcentration
                         : DEFAULT_SERIAL_DILUTION.stockConcentration;
+                const targetConcentrationUnit =
+                    typeof serialState.targetConcentrationUnit === "string" &&
+                    serialState.targetConcentrationUnit.trim() !== ""
+                        ? serialState.targetConcentrationUnit
+                        : typeof serialState.concentrationUnit === "string" &&
+                            serialState.concentrationUnit.trim() !== ""
+                            ? serialState.concentrationUnit
+                            : DEFAULT_SERIAL_DILUTION.targetConcentrationUnit;
+                const includeBlank = Boolean(serialState.includeBlank);
+                const autoDilutionFactor =
+                    typeof serialState.autoDilutionFactor === "string" && serialState.autoDilutionFactor.trim() !== ""
+                        ? serialState.autoDilutionFactor
+                        : typeof (serialState as Record<string, unknown>).autoRatio === "string"
+                            ? ((serialState as Record<string, unknown>).autoRatio as string)
+                            : DEFAULT_SERIAL_DILUTION.autoDilutionFactor;
+                const autoConcentrationStep =
+                    typeof serialState.autoConcentrationStep === "string" && serialState.autoConcentrationStep.trim() !== ""
+                        ? serialState.autoConcentrationStep
+                        : DEFAULT_SERIAL_DILUTION.autoConcentrationStep;
+                const legacyCustomRatios =
+                    typeof (serialState as Record<string, unknown>).customRatios === "string"
+                        ? ((serialState as Record<string, unknown>).customRatios as string)
+                        : "";
+                const fallbackCustomInputs = legacyCustomRatios
+                    .split(/[,;\n]+/)
+                    .map((token) => token.trim())
+                    .filter((token) => token.length > 0);
+                const customStepInputs = Array.isArray(serialState.customStepInputs)
+                    ? serialState.customStepInputs
+                        .filter((token): token is string => typeof token === "string")
+                        .map((token) => token.trim())
+                    : fallbackCustomInputs;
+                const hasOnlyLegacyDilutionDefaults =
+                    customStepInputs.length > 0 &&
+                    customStepInputs.every((token) => token === "1:2");
+                const normalizedCustomStepInputs =
+                    customStepInputs.length > 0 && !hasOnlyLegacyDilutionDefaults
+                        ? Array.from({ length: stepCount }, (_, index) => customStepInputs[index] ?? "")
+                        : Array.from({ length: stepCount }, (_, index) =>
+                            DEFAULT_SERIAL_DILUTION.customStepInputs[index] ?? ""
+                        );
                 state.serialDilutionState = {
                     ...DEFAULT_SERIAL_DILUTION,
                     ...serialState,
                     mode,
+                    seriesType,
+                    autoStopMode,
                     stockConcentration,
-                    exactLastStep: Boolean(serialState.exactLastStep),
-                    minPipetteVolumeUl,
+                    targetConcentrationUnit,
                     overagePercent,
                     replicates,
-                    extraSamples,
+                    includeBlank,
+                    stepCount,
+                    autoDilutionFactor,
+                    autoConcentrationStep,
+                    customStepInputs: normalizedCustomStepInputs,
                 };
+
+                const allowedTabs = new Set([
+                    "home",
+                    "mw",
+                    "dilution",
+                    "serial_dilution",
+                    "buffer_calc",
+                    "buffer_recipe",
+                    "molarity",
+                    "help",
+                    "stocks",
+                ]);
+                const rawActiveTab = state.activeTab;
+                state.activeTab =
+                    typeof rawActiveTab === "string" && allowedTabs.has(rawActiveTab)
+                        ? rawActiveTab
+                        : "home";
 
                 return state;
             },

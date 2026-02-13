@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
+import { createId } from "@/lib/id";
 
 // --- Types ---
 
@@ -577,7 +578,7 @@ export default function BufferCalculator() {
                                         <button
                                             onClick={() => {
                                                 addStock({
-                                                    id: Math.random().toString(36).substr(2, 9),
+                                                    id: createId(),
                                                     name: `${buffer.name} pH ${targetPH}`,
                                                     formula: "",
                                                     mw: 0,

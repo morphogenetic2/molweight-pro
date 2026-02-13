@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { AppState, BufferRecipeSlice } from "@/store/storeTypes";
+import { createId } from "@/lib/id";
 
 export const DEFAULT_BUFFER_VOLUME = "100";
 export const DEFAULT_BUFFER_UNIT = "mL";
@@ -16,7 +17,7 @@ export const createBufferRecipeSlice: StateCreator<AppState, [], [], BufferRecip
             solutes: [
                 ...state.solutes,
                 {
-                    id: Math.random().toString(36).substr(2, 9),
+                    id: createId(),
                     name: "",
                     mw: "",
                     conc: "1",

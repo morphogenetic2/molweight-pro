@@ -3,19 +3,22 @@ import type { AppState, SerialDilutionSlice, SerialDilutionState } from "@/store
 
 export const DEFAULT_SERIAL_DILUTION: SerialDilutionState = {
     mode: "auto",
+    seriesType: "dilution",
+    autoStopMode: "target",
     stockConcentration: "100",
     startConcentration: "100",
     targetConcentration: "1",
+    targetConcentrationUnit: "mM",
     concentrationUnit: "mM",
     finalVolume: "1",
     volumeUnit: "mL",
     replicates: 1,
-    extraSamples: 0,
     overagePercent: 0,
-    autoRatio: "1:10",
-    customRatios: "1:2, 1:2, 1:2, 1:2",
-    exactLastStep: false,
-    minPipetteVolumeUl: 0.2,
+    includeBlank: false,
+    stepCount: 4,
+    autoDilutionFactor: "1:10",
+    autoConcentrationStep: "10",
+    customStepInputs: ["", "", "", ""],
 };
 
 export const createSerialDilutionSlice: StateCreator<AppState, [], [], SerialDilutionSlice> = (set) => ({

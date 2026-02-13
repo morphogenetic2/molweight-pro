@@ -9,6 +9,7 @@ import { useDebounce } from "@/lib/hooks/useDebounce";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
 import { FormulaBadge } from "../ui/FormulaBadge";
+import { createId } from "@/lib/id";
 
 
 export default function DilutionCalculator() {
@@ -51,7 +52,7 @@ export default function DilutionCalculator() {
     const handleAddOrUpdate = () => {
         if (buttonState === "add") {
             // Generate ID locally so we can track it
-            const newId = Math.random().toString(36).substr(2, 9);
+            const newId = createId();
             addSolute({
                 id: newId,
                 name: dilution.name,

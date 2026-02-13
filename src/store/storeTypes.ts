@@ -6,7 +6,6 @@ export type ActiveTab =
     | "mw"
     | "dilution"
     | "serial_dilution"
-    | "plate_planner"
     | "buffer_calc"
     | "buffer_recipe"
     | "molarity"
@@ -158,22 +157,27 @@ export interface MolaritySlice {
 }
 
 export type SerialDilutionMode = "auto" | "custom";
+export type SerialSeriesType = "dilution" | "concentration";
+export type SerialAutoStopMode = "target" | "steps";
 
 export interface SerialDilutionState {
     mode: SerialDilutionMode;
+    seriesType: SerialSeriesType;
+    autoStopMode: SerialAutoStopMode;
     stockConcentration: string;
     startConcentration: string;
     targetConcentration: string;
+    targetConcentrationUnit: string;
     concentrationUnit: string;
     finalVolume: string;
     volumeUnit: string;
     replicates: number;
-    extraSamples: number;
     overagePercent: number;
-    autoRatio: string;
-    customRatios: string;
-    exactLastStep: boolean;
-    minPipetteVolumeUl: number;
+    includeBlank: boolean;
+    stepCount: number;
+    autoDilutionFactor: string;
+    autoConcentrationStep: string;
+    customStepInputs: string[];
 }
 
 export interface SerialDilutionSlice {

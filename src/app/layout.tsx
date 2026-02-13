@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { APP_VERSION } from "@/lib/appMeta";
 import "./globals.css";
 
 const inter = Inter({
@@ -14,7 +15,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MolecularWeight Pro v2",
+  title: `MolecularWeight Pro v${APP_VERSION}`,
   description: "Advanced chemical calculations and lab tools.",
 };
 

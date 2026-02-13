@@ -12,6 +12,7 @@ import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { tryCalculateMw } from "@/lib/parser";
+import { createId } from "@/lib/id";
 
 export function StockManager() {
     const { stocks, addStock, removeStock } = useStore();
@@ -84,7 +85,7 @@ export function StockManager() {
         const volUnit = volParsed.unit ?? newVolUnit;
 
         const newStock: Stock = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: createId(),
             name: newName,
             formula: formula,
             mw: mw,
