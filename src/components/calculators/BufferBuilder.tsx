@@ -2,20 +2,76 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
-import type { Solute } from "@/store/storeTypes";
+import type { Solute, LiquidDensityEntry } from "@/store/storeTypes";
 import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker, Printer } from "lucide-react";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { formatMass, formatVolume, formatConcentration, getUnitLabel, tryCalculateMw } from "@/lib/parser";
 import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
+import { lookupDensityForCompound } from "@/lib/chemistry/density";
 import { lookupPubChem } from "@/lib/api";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useToastStore } from "@/store/useToastStore";
 
+function bufferVolumeToLiters(bufferVolume: string, bufferUnit: string): number | null {
+    const vol = Number.parseFloat(bufferVolume);
+    if (!Number.isFinite(vol) || vol <= 0) return null;
+    if (bufferUnit === "mL") return vol / 1000;
+    if (bufferUnit === "μL") return vol / 1000000;
+    return vol;
+}
 
+function computeMassRequiredInGrams(solute: Solute, bufferVolume: string, bufferUnit: string): number | null {
+    if (solute.isStock && solute.stockConc) {
+        return null;
+    }
+
+    const conc = Number.parseFloat(String(solute.conc));
+    const volL = bufferVolumeToLiters(bufferVolume, bufferUnit);
+    if (!Number.isFinite(conc) || !volL) return null;
+
+    const mw = Number.parseFloat(String(solute.mw));
+    if (solute.unit === "M") return Number.isFinite(mw) ? conc * volL * mw : null;
+    if (solute.unit === "mM") return Number.isFinite(mw) ? (conc / 1000) * volL * mw : null;
+    if (solute.unit === "μM") return Number.isFinite(mw) ? (conc / 1000000) * volL * mw : null;
+    if (solute.unit === "pct") return (conc / 100) * (volL * 1000);
+
+    const volML = volL * 1000;
+    if (solute.unit === "μg/mL" || solute.unit === "ng/μL") return (conc / 1000) * volML / 1000;
+    if (solute.unit === "mg/mL") return conc * volML / 1000;
+    if (solute.unit === "mg/L") return conc * volL / 1000;
+    if (solute.unit === "g/L") return conc * volL;
+
+    return null;
+}
+
+function computeEquivalentLiquidVolume(
+    solute: Solute,
+    bufferVolume: string,
+    bufferUnit: string,
+    liquidDensities: LiquidDensityEntry[]
+): string | null {
+    const massGrams = computeMassRequiredInGrams(solute, bufferVolume, bufferUnit);
+    const densityGPerMl = lookupDensityForCompound(
+        {
+            cid: solute.cid,
+            name: solute.name,
+            formula: solute.formula,
+        },
+        liquidDensities
+    );
+    if (!Number.isFinite(massGrams) || !densityGPerMl || massGrams === null || massGrams <= 0) {
+        return null;
+    }
+    const volumeMl = massGrams / densityGPerMl;
+    if (!Number.isFinite(volumeMl) || volumeMl <= 0) {
+        return null;
+    }
+    return formatVolume(volumeMl / 1000);
+}
 function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { solute: Solute; isChecklist: boolean; onToggleCheck: (id: string) => void; view?: 'table' | 'card' }) {
-    const { bufferVolume, bufferUnit, removeSolute, updateSolute } = useStore();
+    const { bufferVolume, bufferUnit, removeSolute, updateSolute, liquidDensities } = useStore();
     const [isSearching, setIsSearching] = useState(false);
 
     const debouncedName = useDebounce(solute.name, 600);
@@ -30,10 +86,11 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
             // 1. Try local advanced parser first
             const localResult = tryCalculateMw(query);
             if (localResult) {
-                updateSolute(solute.id, {
+                const nextData: Partial<Solute> = {
                     mw: localResult.mw.toString(),
                     formula: localResult.formula
-                });
+                };
+                updateSolute(solute.id, nextData);
                 return;
             }
 
@@ -42,11 +99,12 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
             try {
                 const res = await lookupPubChem(query);
                 if (res) {
-                    updateSolute(solute.id, {
+                    const nextData: Partial<Solute> = {
                         mw: res.mw ? String(res.mw.toFixed(2)) : "",
                         formula: res.formula ? String(res.formula) : "",
                         cid: res.cid ? Number(res.cid) : undefined
-                    });
+                    };
+                    updateSolute(solute.id, nextData);
                 }
             } catch (err) {
                 console.error("Lookup error:", err);
@@ -160,6 +218,18 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
         updateSolute(solute.id, { conc: normalized.toString(), unit: nextUnit });
     };
 
+    const equivalentLiquidVolume = computeEquivalentLiquidVolume(
+        solute,
+        bufferVolume,
+        bufferUnit,
+        liquidDensities
+    );
+    const amountOutput = calculateMass();
+    const amountWithVolume =
+        typeof amountOutput === "string" && equivalentLiquidVolume
+            ? `${amountOutput} / ${equivalentLiquidVolume}`
+            : amountOutput;
+
     if (view === 'table') {
         return (
             <tr className="hidden sm:table-row group hover:bg-white/[0.02] transition-colors">
@@ -223,24 +293,32 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                     </div>
                 </td>
                 <td className="px-6 py-4 align-top">
-                        <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            value={solute.mw}
-                            disabled={solute.isStock}
-                            onChange={(e) => updateSolute(solute.id, { mw: e.target.value })}
-                            onBlur={(e) => {
-                                const raw = e.target.value;
-                                const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
-                                if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
-                                    updateSolute(solute.id, { mw: parsed.value });
-                                } else {
-                                    updateSolute(solute.id, { mw: raw.trim() });
-                                }
-                            }}
-                            className={`w-24 bg-transparent border-transparent p-0 focus:ring-0 text-sm ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        />
+                    <div className="space-y-2">
+                        {isChecklist ? (
+                            <div className="text-sm text-zinc-300">
+                                <div>{solute.mw || "-"}</div>
+                            </div>
+                        ) : (
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0.00"
+                                value={solute.mw}
+                                disabled={solute.isStock}
+                                onChange={(e) => updateSolute(solute.id, { mw: e.target.value })}
+                                onBlur={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
+                                    if (parsed.value !== "" && Number.isFinite(parseFloat(parsed.value))) {
+                                        updateSolute(solute.id, { mw: parsed.value });
+                                    } else {
+                                        updateSolute(solute.id, { mw: raw.trim() });
+                                    }
+                                }}
+                                className={`w-24 bg-transparent border-transparent p-0 focus:ring-0 text-sm ${solute.isStock ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            />
+                        )}
+                    </div>
                 </td>
                 <td className="px-6 py-4 align-top">
                     <div className="flex items-center gap-2">
@@ -293,7 +371,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                     </div>
                 </td>
                 <td className="px-6 py-4 text-right font-mono font-bold text-indigo-400 text-lg align-top">
-                    {calculateMass()}
+                    <span>{amountWithVolume}</span>
                 </td>
                 <td className="px-6 py-4 align-top">
                     <button
@@ -421,7 +499,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
 
             <div className="pl-8 pt-2 flex items-center justify-between border-t border-white/5 mt-2">
                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Amount Required</span>
-                <span className="font-mono font-bold text-indigo-400 text-base">{calculateMass()}</span>
+                <span className="font-mono font-bold text-indigo-400 text-base">{amountWithVolume}</span>
             </div>
         </div>
     );
@@ -433,7 +511,8 @@ export default function BufferBuilder() {
         bufferUnit, setBufferUnit,
         solutes, addSolute, clearSolutes, updateSolute,
         setIsRecipeLibraryOpen, setIsSaveRecipeOpen,
-        stocks
+        stocks,
+        liquidDensities
     } = useStore();
     const { push } = useToastStore();
 
@@ -473,7 +552,6 @@ export default function BufferBuilder() {
         const tableData = solutes.map((s: Solute) => {
             // Helper to calc mass for a solute object
             const getAmountString = (solute: Solute) => {
-                const mw = parseFloat(String(solute.mw ?? ""));
                 const conc = parseFloat(String(solute.conc ?? ""));
                 const vol = parseFloat(bufferVolume);
                 
@@ -506,18 +584,20 @@ export default function BufferBuilder() {
                      // Fallback for stock
                      return "See App";
                 }
+                if (solute.unit === "dil") return formatVolume(volL / conc);
 
-                if (solute.unit === "M") return formatMass(conc * volL * mw);
-                if (solute.unit === "mM") return formatMass((conc / 1000) * volL * mw);
-                if (solute.unit === "μM") return formatMass((conc / 1000000) * volL * mw);
-                
-                if (solute.unit === "pct") return formatMass((conc / 100) * (volL * 1000));
-                
-                const volML = volL * 1000;
-                if (solute.unit === "mg/mL") return formatMass(conc * volML / 1000);
-                if (solute.unit === "g/L") return formatMass(conc * volL);
-                 
-                return "??";
+                const massGrams = computeMassRequiredInGrams(solute, bufferVolume, bufferUnit);
+                if (!Number.isFinite(massGrams) || massGrams === null || massGrams <= 0) {
+                    return "??";
+                }
+                const massText = formatMass(massGrams);
+                const equivalentVolume = computeEquivalentLiquidVolume(
+                    solute,
+                    bufferVolume,
+                    bufferUnit,
+                    liquidDensities
+                );
+                return equivalentVolume ? `${massText} / ${equivalentVolume}` : massText;
             };
 
             const amount = getAmountString(s);
@@ -568,7 +648,7 @@ export default function BufferBuilder() {
 
         doc.save("Buffer_Recipe.pdf");
         push("PDF exported.", "success");
-    }, [bufferVolume, bufferUnit, solutes, push]);
+    }, [bufferVolume, bufferUnit, solutes, liquidDensities, push]);
 
     return (
         <div className="space-y-4 sm:space-y-6 pb-10">

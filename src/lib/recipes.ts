@@ -24,6 +24,7 @@ export interface RecipeSolute {
     mw: string;
     conc: string;
     unit: string;
+    cid?: number;
     isStock?: boolean;
     stockConc?: string;
     stockUnit?: string;

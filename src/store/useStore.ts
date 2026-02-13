@@ -11,6 +11,7 @@ import { createSerialDilutionSlice, DEFAULT_SERIAL_DILUTION } from "@/store/slic
 import { createRecipesSlice } from "@/store/slices/recipesSlice";
 import { createStocksSlice, DEFAULT_ADJUSTMENT_STOCKS } from "@/store/slices/stocksSlice";
 import { DEFAULT_MOLECULE_SETTINGS } from "@/store/slices/uiSlice";
+import { createDensitySlice, DEFAULT_LIQUID_DENSITIES } from "@/store/slices/densitySlice";
 
 export const useStore = create<AppState>()(
     persist(
@@ -24,6 +25,7 @@ export const useStore = create<AppState>()(
             ...createSerialDilutionSlice(set, get, api),
             ...createRecipesSlice(set, get, api),
             ...createStocksSlice(set, get, api),
+            ...createDensitySlice(set, get, api),
 
             resetStore: () => {
                 set({
@@ -37,13 +39,14 @@ export const useStore = create<AppState>()(
                     bufferConfig: DEFAULT_BUFFER_CONFIG,
                     molarityState: DEFAULT_MOLARITY,
                     serialDilutionState: DEFAULT_SERIAL_DILUTION,
-                    adjustmentStocks: DEFAULT_ADJUSTMENT_STOCKS
+                    adjustmentStocks: DEFAULT_ADJUSTMENT_STOCKS,
+                    liquidDensities: DEFAULT_LIQUID_DENSITIES,
                 });
             }
         }),
         {
             name: "molweight-storage-v2",
-            version: 5,
+            version: 6,
             migrate: (persistedState: unknown) => {
                 const state = (typeof persistedState === "object" && persistedState !== null
                     ? { ...(persistedState as Record<string, unknown>) }
@@ -228,6 +231,28 @@ export const useStore = create<AppState>()(
                     typeof rawActiveTab === "string" && allowedTabs.has(rawActiveTab)
                         ? rawActiveTab
                         : "home";
+
+                const rawLiquidDensities: unknown[] = Array.isArray(
+                    (state as Record<string, unknown>).liquidDensities
+                )
+                    ? ((state as Record<string, unknown>).liquidDensities as unknown[])
+                    : [];
+                state.liquidDensities = rawLiquidDensities
+                    .map((entry) => {
+                        if (!entry || typeof entry !== "object") return null;
+                        const cast = entry as Record<string, unknown>;
+                        const cid = Number(cast.cid);
+                        const density = Number(cast.density);
+                        const name = typeof cast.name === "string" ? cast.name.trim() : "";
+                        if (!Number.isInteger(cid) || cid <= 0) return null;
+                        if (!Number.isFinite(density) || density <= 0) return null;
+                        if (!name) return null;
+                        return { cid, density, name };
+                    })
+                    .filter(
+                        (entry): entry is { cid: number; density: number; name: string } =>
+                            entry !== null
+                    );
 
                 return state;
             },

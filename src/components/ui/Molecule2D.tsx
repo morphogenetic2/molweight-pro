@@ -28,6 +28,8 @@ export default function Molecule2D({
 }: Molecule2DProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
+    const redrawRef = useRef<(() => void) | null>(null);
+    const zoomDrawRef = useRef(1);
     const panStartRef = useRef<{ startX: number; startY: number } | null>(null);
     const zoomRef = useRef(1);
     const panOffsetRef = useRef({ x: 0, y: 0 });
@@ -49,6 +51,16 @@ export default function Molecule2D({
 
     useEffect(() => {
         zoomRef.current = zoom;
+    }, [zoom]);
+
+    useEffect(() => {
+        if (zoomDrawRef.current === zoom) {
+            return;
+        }
+        zoomDrawRef.current = zoom;
+        if (redrawRef.current) {
+            redrawRef.current();
+        }
     }, [zoom]);
 
     useEffect(() => {
@@ -148,8 +160,20 @@ export default function Molecule2D({
 
         let isCancelled = false;
         const canvas = canvasRef.current;
-        canvas.width = renderWidth;
-        canvas.height = renderHeight;
+        const deviceScale =
+            typeof window !== "undefined" && Number.isFinite(window.devicePixelRatio)
+                ? Math.max(1, window.devicePixelRatio)
+                : 1;
+        // Re-rasterize at higher resolution as zoom increases to keep lines sharp.
+        const zoomScale = Math.max(1, zoomRef.current);
+        const rasterScale = Math.min(8, deviceScale * zoomScale);
+        const rasterWidth = Math.max(1, Math.round(renderWidth * rasterScale));
+        const rasterHeight = Math.max(1, Math.round(renderHeight * rasterScale));
+
+        canvas.width = rasterWidth;
+        canvas.height = rasterHeight;
+        canvas.style.width = `${renderWidth}px`;
+        canvas.style.height = `${renderHeight}px`;
 
         const renderMolecule = () => {
             setLoading(true);
@@ -192,7 +216,7 @@ export default function Molecule2D({
                         if (!drawer.svgWrapper || !canvasRef.current) {
                             throw new Error("Canvas renderer is not available.");
                         }
-                        drawer.svgWrapper.toCanvas(canvasRef.current, renderWidth, renderHeight);
+                        drawer.svgWrapper.toCanvas(canvasRef.current, rasterWidth, rasterHeight);
                     };
 
                     // Use built-in standard themes from smiles-drawer.
@@ -226,10 +250,12 @@ export default function Molecule2D({
             }
         };
 
+        redrawRef.current = renderMolecule;
         renderMolecule();
 
         return () => {
             isCancelled = true;
+            redrawRef.current = null;
         };
     }, [smiles, renderWidth, renderHeight, theme, moleculeSettings, atomVisualization, forceExplicitHydrogens]);
 

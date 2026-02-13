@@ -19,6 +19,7 @@ export const createRecipesSlice: StateCreator<AppState, [], [], RecipesSlice> = 
                         mw: String(s.mw),
                         conc: String(s.conc),
                         unit: s.unit,
+                        cid: typeof s.cid === "number" ? s.cid : undefined,
                         isStock: s.isStock,
                         stockConc: s.stockConc,
                         stockUnit: s.stockUnit

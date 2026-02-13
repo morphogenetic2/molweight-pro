@@ -1,9 +1,11 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
-import { X, Trash2, Info, ShieldCheck, Database } from "lucide-react";
+import { X, Trash2, Info, ShieldCheck, Database, Search, Loader2, FlaskConical, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { APP_VERSION } from "@/lib/appMeta";
+import { lookupPubChem } from "@/lib/api";
 
 export function SettingsModal() {
     const { 
@@ -11,8 +13,89 @@ export function SettingsModal() {
         setIsSettingsOpen, 
         resetStore, 
         moleculeSettings, 
-        updateMoleculeSettings 
+        updateMoleculeSettings,
+        liquidDensities,
+        upsertLiquidDensity,
+        removeLiquidDensity,
     } = useStore();
+    const [isDensityModalOpen, setIsDensityModalOpen] = useState(false);
+    const [densityQuery, setDensityQuery] = useState("");
+    const [densityInput, setDensityInput] = useState("");
+    const [lookupResult, setLookupResult] = useState<{ cid: number; name: string; formula: string } | null>(null);
+    const [densityLookupError, setDensityLookupError] = useState("");
+    const [isDensityLookupLoading, setIsDensityLookupLoading] = useState(false);
+    const [densityDrafts, setDensityDrafts] = useState<Record<number, string>>({});
+    const [densityDraftErrors, setDensityDraftErrors] = useState<Record<number, string>>({});
+
+    const sortedLiquidDensities = useMemo(
+        () => [...liquidDensities].sort((a, b) => a.name.localeCompare(b.name)),
+        [liquidDensities]
+    );
+
+    const handleDensityLookup = async () => {
+        const query = densityQuery.trim();
+        if (!query) return;
+        setDensityLookupError("");
+        setIsDensityLookupLoading(true);
+        try {
+            const result = await lookupPubChem(query);
+            if (!result?.cid) {
+                setLookupResult(null);
+                setDensityLookupError("No PubChem result with CID for this query.");
+                return;
+            }
+            const cid = Number(result.cid);
+            const name = String(result.name ?? query).trim() || query;
+            const formula = String(result.formula ?? "").trim();
+            setLookupResult({ cid, name, formula });
+            const existing = liquidDensities.find((entry) => entry.cid === cid);
+            setDensityInput(existing ? String(existing.density) : "");
+        } catch (error) {
+            console.error("Density lookup failed:", error);
+            setLookupResult(null);
+            setDensityLookupError("PubChem lookup failed. Please try again.");
+        } finally {
+            setIsDensityLookupLoading(false);
+        }
+    };
+
+    const handleSaveLookupEntry = () => {
+        if (!lookupResult) return;
+        const parsedDensity = Number.parseFloat(densityInput.trim());
+        if (!Number.isFinite(parsedDensity) || parsedDensity <= 0) {
+            setDensityLookupError("Density must be a positive number in g/mL.");
+            return;
+        }
+        upsertLiquidDensity({
+            cid: lookupResult.cid,
+            name: lookupResult.name,
+            density: parsedDensity,
+        });
+        setDensityLookupError("");
+        setDensityInput(parsedDensity.toString());
+    };
+
+    const handleDraftDensityBlur = (cid: number) => {
+        const draft = densityDrafts[cid];
+        if (draft === undefined) return;
+        const parsed = Number.parseFloat(draft.trim());
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            setDensityDraftErrors((prev) => ({ ...prev, [cid]: "Invalid density" }));
+            return;
+        }
+        const existing = liquidDensities.find((entry) => entry.cid === cid);
+        if (!existing) return;
+        upsertLiquidDensity({
+            cid,
+            name: existing.name,
+            density: parsed,
+        });
+        setDensityDraftErrors((prev) => {
+            const next = { ...prev };
+            delete next[cid];
+            return next;
+        });
+    };
 
     if (!isSettingsOpen) return null;
 
@@ -151,6 +234,33 @@ export function SettingsModal() {
                             </div>
                         </section>
 
+                        {/* Section: Liquid Densities */}
+                        <section>
+                            <div className="flex items-center gap-2 mb-4 text-zinc-400">
+                                <FlaskConical className="h-4 w-4" />
+                                <h3 className="text-sm font-bold uppercase tracking-widest">Liquid Densities</h3>
+                            </div>
+                            <div className="glass-card p-4 sm:p-6 border-white/5">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <h4 className="font-bold text-white">Manage CID Density Database</h4>
+                                        <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed">
+                                            Add custom liquid entries by PubChem CID. Buffer Builder will show mass/volume only for substances found in this database.
+                                        </p>
+                                        <p className="text-[10px] sm:text-xs text-zinc-500">
+                                            {sortedLiquidDensities.length} custom entr{sortedLiquidDensities.length === 1 ? "y" : "ies"} configured.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsDensityModalOpen(true)}
+                                        className="shrink-0 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all text-xs font-bold uppercase tracking-wider"
+                                    >
+                                        Manage
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
                         {/* Section: Data Management */}
                         <section>
                             <div className="flex items-center gap-2 mb-4 text-zinc-400">
@@ -212,6 +322,156 @@ export function SettingsModal() {
                             </div>
                         </section>
                     </div>
+
+                    {isDensityModalOpen && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+                            <div
+                                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                                onClick={() => setIsDensityModalOpen(false)}
+                            />
+                            <div className="relative w-full max-w-2xl bg-[#0b0b0d] border border-white/10 rounded-2xl shadow-2xl max-h-[85vh] overflow-hidden flex flex-col">
+                                <div className="px-5 py-4 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <FlaskConical className="h-4 w-4 text-cyan-300" />
+                                        <h4 className="text-sm font-bold uppercase tracking-wider text-cyan-300">Liquid Density Manager</h4>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsDensityModalOpen(false)}
+                                        className="p-2 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-white transition-colors"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+
+                                <div className="p-5 space-y-4 overflow-y-auto contents-scrollbar">
+                                    <div className="glass-card p-4 border-white/5 space-y-3">
+                                        <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                                            Search Substance (PubChem)
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={densityQuery}
+                                                onChange={(event) => setDensityQuery(event.target.value)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter" && !isDensityLookupLoading) {
+                                                        void handleDensityLookup();
+                                                    }
+                                                }}
+                                                placeholder="e.g. Ethanol, DMSO, Acetonitrile"
+                                                className="flex-1"
+                                            />
+                                            <button
+                                                onClick={() => void handleDensityLookup()}
+                                                disabled={isDensityLookupLoading || !densityQuery.trim()}
+                                                className="px-3 py-2 rounded-xl bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                                aria-label="Search PubChem"
+                                            >
+                                                {isDensityLookupLoading ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Search className="h-4 w-4" />
+                                                )}
+                                            </button>
+                                        </div>
+
+                                        {lookupResult && (
+                                            <div className="grid sm:grid-cols-[1fr_auto] gap-3 border border-cyan-500/20 bg-cyan-500/5 rounded-xl p-3">
+                                                <div className="text-xs space-y-1">
+                                                    <p className="text-cyan-200 font-semibold">{lookupResult.name}</p>
+                                                    <p className="text-zinc-400">
+                                                        CID: <span className="text-zinc-300 font-mono">{lookupResult.cid}</span>
+                                                        {lookupResult.formula ? (
+                                                            <>
+                                                                {" "}• Formula: <span className="text-zinc-300 font-mono">{lookupResult.formula}</span>
+                                                            </>
+                                                        ) : null}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={densityInput}
+                                                        onChange={(event) => setDensityInput(event.target.value)}
+                                                        placeholder="g/mL"
+                                                        className="w-24"
+                                                    />
+                                                    <button
+                                                        onClick={handleSaveLookupEntry}
+                                                        disabled={!densityInput.trim()}
+                                                        className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-xs font-bold uppercase tracking-wider"
+                                                    >
+                                                        <Plus className="h-3.5 w-3.5" />
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {densityLookupError && (
+                                            <p className="text-[11px] text-red-300">{densityLookupError}</p>
+                                        )}
+                                    </div>
+
+                                    <div className="glass-card p-4 border-white/5">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h5 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                                                Custom Entries
+                                            </h5>
+                                            <span className="text-[11px] text-zinc-500">
+                                                {sortedLiquidDensities.length} total
+                                            </span>
+                                        </div>
+
+                                        {sortedLiquidDensities.length === 0 ? (
+                                            <p className="text-xs text-zinc-500 italic">No custom liquid densities yet.</p>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {sortedLiquidDensities.map((entry) => {
+                                                    const draftValue = densityDrafts[entry.cid] ?? String(entry.density);
+                                                    return (
+                                                        <div key={entry.cid} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-semibold text-zinc-200 truncate">{entry.name}</p>
+                                                                <p className="text-[11px] text-zinc-500 font-mono">CID {entry.cid}</p>
+                                                            </div>
+                                                            <div className="w-28">
+                                                                <input
+                                                                    type="text"
+                                                                    inputMode="decimal"
+                                                                    value={draftValue}
+                                                                    onChange={(event) =>
+                                                                        setDensityDrafts((prev) => ({
+                                                                            ...prev,
+                                                                            [entry.cid]: event.target.value,
+                                                                        }))
+                                                                    }
+                                                                    onBlur={() => handleDraftDensityBlur(entry.cid)}
+                                                                    className="w-full text-sm"
+                                                                    aria-label={`Density for ${entry.name}`}
+                                                                />
+                                                                {densityDraftErrors[entry.cid] && (
+                                                                    <p className="text-[10px] text-red-300 mt-1">{densityDraftErrors[entry.cid]}</p>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={() => removeLiquidDensity(entry.cid)}
+                                                                className="p-2 rounded-lg border border-red-500/20 text-red-300 hover:bg-red-500/10 transition-colors"
+                                                                title={`Remove ${entry.name}`}
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </motion.div>
             </div>
         </AnimatePresence>

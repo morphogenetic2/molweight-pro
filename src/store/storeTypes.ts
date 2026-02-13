@@ -114,6 +114,7 @@ export interface Solute {
     conc: string | number;
     unit: string;
     formula?: string;
+    cid?: number;
     done?: boolean;
     isStock?: boolean;
     stockConc?: string;
@@ -205,6 +206,18 @@ export interface StocksSlice {
     removeAdjustmentStock: (id: string) => void;
 }
 
+export interface LiquidDensityEntry {
+    cid: number;
+    name: string;
+    density: number;
+}
+
+export interface DensitySlice {
+    liquidDensities: LiquidDensityEntry[];
+    upsertLiquidDensity: (entry: LiquidDensityEntry) => void;
+    removeLiquidDensity: (cid: number) => void;
+}
+
 export interface AppState
     extends UiSlice,
         MwSlice,
@@ -214,6 +227,7 @@ export interface AppState
         MolaritySlice,
         SerialDilutionSlice,
         RecipesSlice,
-        StocksSlice {
+        StocksSlice,
+        DensitySlice {
     resetStore: () => void;
 }
