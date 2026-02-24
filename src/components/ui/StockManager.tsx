@@ -7,7 +7,7 @@ import { Plus, Trash2, FileSpreadsheet, Save, AlertTriangle } from "lucide-react
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { motion, AnimatePresence } from "framer-motion";
-import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
+import { convertUnitValue, getUnitLabel, parseValueWithUnit } from "@/lib/chemistry/units";
 import { ValueUnitInput } from "@/components/ui/ValueUnitInput";
 import { useToastStore } from "@/store/useToastStore";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -77,7 +77,7 @@ export function StockManager() {
     };
 
     const saveStock = (mw: number, formula: string) => {
-        const concParsed = parseValueWithUnit(newConc, ["M", "mM", "μM", "mg/mL", "g/L", "pct"]);
+        const concParsed = parseValueWithUnit(newConc, ["M", "mM", "μM", "mg/mL", "g/L", "pct", "dil"]);
         const volParsed = parseValueWithUnit(newVol, ["mL", "L", "μL"]);
         const concentration = concParsed.value;
         const unit = concParsed.unit ?? newUnit;
@@ -246,14 +246,14 @@ export function StockManager() {
                                             label="Concentration"
                                             value={newConc}
                                             unit={newUnit}
-                                            options={["M", "mM", "μM", "mg/mL", "g/L", "pct"]}
+                                            options={["M", "mM", "μM", "mg/mL", "g/L", "pct", "dil"]}
                                             onValueChange={(raw) => setNewConc(raw)}
                                             onUnitChange={handleNewConcUnitChange}
                                             inputClassName="text-sm"
                                             selectClassName="min-w-[3rem]"
                                             wrapperClassName="bg-black/20 rounded-xl border border-white/10 px-4 py-2.5"
                                         />
-                                        <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">10 mM</span></p>
+                                        <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">10 mM</span> or <span className="font-mono text-zinc-400">50x</span></p>
                                     </div>
 
                                     <div className="space-y-2">
@@ -314,7 +314,7 @@ export function StockManager() {
                                     )}
                                 </div>
                                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 font-mono font-bold text-sm border border-emerald-500/20">
-                                    {stock.concentration} <span className="text-xs opacity-70">{stock.unit === 'pct' ? '%' : stock.unit}</span>
+                                    {stock.concentration} <span className="text-xs opacity-70">{getUnitLabel(stock.unit)}</span>
                                 </div>
                             </div>
 

@@ -1,4 +1,4 @@
-export type UnitType = 'mass' | 'volume' | 'molar' | 'mass_conc' | 'percent';
+export type UnitType = 'mass' | 'volume' | 'molar' | 'mass_conc' | 'percent' | 'dilution';
 
 export interface UnitConfig {
     label: string;
@@ -46,12 +46,18 @@ export const PERCENT_UNITS: Record<string, UnitConfig> = {
     'pct': { label: '%', factor: 0.01 }, // 1% = 0.01
 };
 
+// Base: raw fold (e.g. 50x)
+export const DILUTION_UNITS: Record<string, UnitConfig> = {
+    'dil': { label: 'x', factor: 1 },
+};
+
 export const ALL_UNITS = {
     ...MASS_UNITS,
     ...VOLUME_UNITS,
     ...MOLAR_UNITS,
     ...MASS_CONC_UNITS,
     ...PERCENT_UNITS,
+    ...DILUTION_UNITS,
 };
 
 // Helpers for UI
@@ -65,6 +71,7 @@ export function getUnitType(unit: string): UnitType | 'unknown' {
     if (unit in MOLAR_UNITS) return 'molar';
     if (unit in MASS_CONC_UNITS) return 'mass_conc';
     if (unit in PERCENT_UNITS) return 'percent';
+    if (unit in DILUTION_UNITS) return 'dilution';
     return 'unknown';
 }
 

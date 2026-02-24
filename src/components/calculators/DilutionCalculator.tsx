@@ -11,6 +11,7 @@ import { useToastStore } from "@/store/useToastStore";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { createId } from "@/lib/id";
 
+const CONCENTRATION_UNITS = ["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct", "dil"];
 
 export default function DilutionCalculator() {
     const {
@@ -134,12 +135,21 @@ export default function DilutionCalculator() {
     const isMolar = (u: string) => ['M', 'mM', 'μM'].includes(u);
     // Helper: isMass checks if unit is μg/mL, mg/mL, mg/L, g/L, pct, ng/μL
     const isMass = (u: string) => ['μg/mL', 'mg/mL', 'mg/L', 'g/L', 'pct', 'ng/μL'].includes(u);
+    const getDomain = (u: string): 'molar' | 'mass' | 'dilution' | null => {
+        if (u === 'dil') return 'dilution';
+        if (isMolar(u)) return 'molar';
+        if (isMass(u)) return 'mass';
+        return null;
+    };
 
     const needsMw = (() => {
-        const domain1 = isMolar(dilution.u1) ? 'molar' : (isMass(dilution.u1) ? 'mass' : null);
-        const domain2 = isMolar(dilution.u2) ? 'molar' : (isMass(dilution.u2) ? 'mass' : null);
-        return domain1 !== domain2 && domain1 && domain2;
+        const domain1 = getDomain(dilution.u1);
+        const domain2 = getDomain(dilution.u2);
+        if (!domain1 || !domain2) return false;
+        if (domain1 === 'dilution' || domain2 === 'dilution') return false;
+        return domain1 !== domain2;
     })();
+    const isFoldMode = dilution.u1 === "dil" || dilution.u2 === "dil";
 
     // Advanced calculation logic (matching prototype C1V1 = C2V2)
     const calculateDilution = () => {
@@ -154,15 +164,26 @@ export default function DilutionCalculator() {
         if (isNaN(c1) || isNaN(c2) || isNaN(v2) || c1 <= 0) return null;
 
         // Domain check: Need MW if crossing Mass <-> Molar
-        const domain1 = isMolar(u1) ? 'molar' : (isMass(u1) ? 'mass' : null);
-        const domain2 = isMolar(u2) ? 'molar' : (isMass(u2) ? 'mass' : null);
+        const domain1 = getDomain(u1);
+        const domain2 = getDomain(u2);
 
-        if (domain1 !== domain2 && (!mw || mw <= 0)) {
+        if ((domain1 === 'dilution') !== (domain2 === 'dilution')) {
+            return { error: "Fold (x) concentrations can only be diluted to another fold (x) concentration." };
+        }
+
+        if (
+            domain1 &&
+            domain2 &&
+            domain1 !== domain2 &&
+            domain1 !== 'dilution' &&
+            domain2 !== 'dilution' &&
+            (!mw || mw <= 0)
+        ) {
             return { error: "Molecular Weight required for Mass <-> Molar conversion." };
         }
 
         // 1. Convert to base units
-        // Molar -> M. Mass -> g/L.
+        // Molar -> M. Mass -> g/L. Fold (x) is unitless ratio.
         let c1Base = c1;
         if (u1 === 'mM') c1Base = c1 / 1000;
         else if (u1 === 'μM') c1Base = c1 / 1e6;
@@ -329,36 +350,40 @@ export default function DilutionCalculator() {
                 </div>
                 <div className="w-full sm:w-44">
                     <label className="block text-[10px] sm:text-xs font-bold text-zinc-500 uppercase mb-2">Molecular Weight</label>
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="Mw"
-                            className="w-full text-sm"
-                            value={mwInput}
-                            onChange={(e) => {
-                                const raw = e.target.value;
-                                setMwInput(raw);
-                                const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
-                                const num = parseFloat(parsed.value);
-                                if (Number.isFinite(num)) setDilution({ mw: num });
-                            }}
-                            onBlur={(e) => {
-                                const raw = e.target.value;
-                                const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
-                                const num = parseFloat(parsed.value);
-                                if (Number.isFinite(num)) {
-                                    const rounded = parseFloat(num.toFixed(2));
-                                    setDilution({ mw: rounded });
-                                    setMwInput(rounded.toString());
-                                } else {
-                                    setMwInput(raw.trim());
-                                }
-                            }}
-                        />
-                        <span className="text-zinc-500 text-[10px] sm:text-xs font-mono shrink-0">g/mol</span>
-                    </div>
-                    {needsMw && (!dilution.mw || dilution.mw <= 0) && (
+                    {!isFoldMode ? (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="Mw"
+                                className="w-full text-sm"
+                                value={mwInput}
+                                onChange={(e) => {
+                                    const raw = e.target.value;
+                                    setMwInput(raw);
+                                    const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
+                                    const num = parseFloat(parsed.value);
+                                    if (Number.isFinite(num)) setDilution({ mw: num });
+                                }}
+                                onBlur={(e) => {
+                                    const raw = e.target.value;
+                                    const parsed = parseValueWithUnit(raw, ["g/mol", "g", "mg", "kg"]);
+                                    const num = parseFloat(parsed.value);
+                                    if (Number.isFinite(num)) {
+                                        const rounded = parseFloat(num.toFixed(2));
+                                        setDilution({ mw: rounded });
+                                        setMwInput(rounded.toString());
+                                    } else {
+                                        setMwInput(raw.trim());
+                                    }
+                                }}
+                            />
+                            <span className="text-zinc-500 text-[10px] sm:text-xs font-mono shrink-0">g/mol</span>
+                        </div>
+                    ) : (
+                        <p className="text-[11px] text-zinc-500 mt-1">Not used for fold (x) dilutions.</p>
+                    )}
+                    {!isFoldMode && needsMw && (!dilution.mw || dilution.mw <= 0) && (
                         <p className="text-[11px] text-amber-500 mt-1">MW required for mass ↔ molar conversion.</p>
                     )}
                 </div>
@@ -403,7 +428,7 @@ export default function DilutionCalculator() {
                                                 >
                                                     <div className="text-sm font-bold text-white">{stock.name}</div>
                                                     <div className="text-xs text-zinc-400 font-mono">
-                                                        {stock.concentration} {stock.unit}
+                                                        {stock.concentration} {getUnitLabel(stock.unit)}
                                                     </div>
                                                 </button>
                                             ))
@@ -418,7 +443,7 @@ export default function DilutionCalculator() {
                             <ValueUnitInput
                                 value={dilution.c1}
                                 unit={dilution.u1}
-                                options={["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]}
+                                options={CONCENTRATION_UNITS}
                                 onValueChange={(raw) => setDilution({ c1: raw })}
                                 onUnitChange={handleC1UnitChange}
                                 className="flex-1"
@@ -429,7 +454,7 @@ export default function DilutionCalculator() {
                         {(!Number.isFinite(c1Num) || c1Num <= 0) ? (
                             <p className="text-[11px] text-amber-500">Enter a positive stock concentration.</p>
                         ) : (
-                            <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">10 mM</span> or <span className="font-mono text-zinc-400">5 mg/mL</span>.</p>
+                            <p className="text-[11px] text-zinc-600">Tip: type <span className="font-mono text-zinc-400">10 mM</span>, <span className="font-mono text-zinc-400">5 mg/mL</span>, or <span className="font-mono text-zinc-400">50x</span>.</p>
                         )}
                     </div>
                 </section>
@@ -442,10 +467,16 @@ export default function DilutionCalculator() {
                             <ValueUnitInput
                                 value={dilution.c2}
                                 unit={dilution.u2}
-                                options={["M", "mM", "μM", "μg/mL", "ng/μL", "mg/mL", "mg/L", "g/L", "pct"]}
+                                options={CONCENTRATION_UNITS}
                                 onValueChange={(raw) => setDilution({ c2: raw })}
                                 onUnitChange={handleC2UnitChange}
                                 isOptionDisabled={(opt) => {
+                                    if (dilution.u1 === "dil") {
+                                        return opt !== "dil";
+                                    }
+                                    if (opt === "dil") {
+                                        return dilution.u1 !== "dil";
+                                    }
                                     if (isMolar(opt)) {
                                         return (!dilution.mw || dilution.mw <= 0) && !isMolar(dilution.u1);
                                     }

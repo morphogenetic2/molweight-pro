@@ -56,7 +56,7 @@ export const UNIT_LABELS: Record<string, string> = {
     'mg/L': 'mg/L',
     'g/L': 'g/L',
     'pct': '%',
-    'dil': 'X',
+    'dil': 'x',
     'mL': 'mL',
     'μL': 'μL',
     'uL': 'μL',
