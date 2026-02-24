@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/store/useStore";
-import { X, Trash2, Info, ShieldCheck, Database, Search, Loader2, FlaskConical, Plus } from "lucide-react";
+import { X, Trash2, Info, ShieldCheck, Database, Search, Loader2, FlaskConical, Plus } from "@/lib/icons";
 import { motion, AnimatePresence } from "framer-motion";
 import { APP_VERSION } from "@/lib/appMeta";
 import { lookupPubChem } from "@/lib/api";
@@ -118,7 +118,7 @@ export function SettingsModal() {
                 >
                     <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02] shrink-0">
                         <div className="flex items-center gap-3">
-                            <SettingsIcon className="h-5 w-5 text-indigo-400" />
+                            <SettingsIcon className="h-5 w-5 text-emerald-400" />
                             <h2 className="text-lg sm:text-xl font-bold italic tracking-tight">Settings</h2>
                         </div>
                         <button
@@ -143,20 +143,20 @@ export function SettingsModal() {
                                         <div className="flex flex-col gap-2">
                                             <div className="flex justify-between items-center text-xs">
                                                 <span className="text-zinc-400 font-medium tracking-tight">Bond Thickness</span>
-                                                <span className="text-indigo-400 font-mono">{moleculeSettings.bondThickness}</span>
+                                                <span className="text-emerald-400 font-mono">{moleculeSettings.bondThickness}</span>
                                             </div>
                                             <input 
                                                 type="range" min="0.5" max="3" step="0.1"
                                                 value={moleculeSettings.bondThickness}
                                                 onChange={(e) => updateMoleculeSettings({ bondThickness: parseFloat(e.target.value) })}
-                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                                             />
                                         </div>
 
                                         <div className="flex flex-col gap-2">
                                             <div className="flex justify-between items-center text-xs">
                                                 <span className="text-zinc-400 font-medium tracking-tight">Bond Length</span>
-                                                <span className="text-indigo-400 font-mono">{moleculeSettings.bondLength}px</span>
+                                                <span className="text-emerald-400 font-mono">{moleculeSettings.bondLength}px</span>
                                             </div>
                                             <input 
                                                 type="range" min="10" max="40" step="1"
@@ -165,14 +165,14 @@ export function SettingsModal() {
                                                     bondLength: parseInt(e.target.value),
                                                     bondSpacing: 0.18 * parseInt(e.target.value) 
                                                 })}
-                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                                             />
                                         </div>
 
                                         <div className="flex flex-col gap-2">
                                             <div className="flex justify-between items-center text-xs">
                                                 <span className="text-zinc-400 font-medium tracking-tight">Font Size</span>
-                                                <span className="text-indigo-400 font-mono">{moleculeSettings.fontSizeLarge}pt</span>
+                                                <span className="text-emerald-400 font-mono">{moleculeSettings.fontSizeLarge}pt</span>
                                             </div>
                                             <input 
                                                 type="range" min="6" max="18" step="1"
@@ -181,14 +181,14 @@ export function SettingsModal() {
                                                     fontSizeLarge: parseInt(e.target.value),
                                                     fontSizeSmall: Math.max(5, parseInt(e.target.value) - 3)
                                                 })}
-                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                                             />
                                         </div>
 
                                         <div className="flex flex-col gap-2">
                                             <div className="flex justify-between items-center text-xs">
                                                 <span className="text-zinc-400 font-medium tracking-tight">Max Render Size</span>
-                                                <span className="text-indigo-400 font-mono">
+                                                <span className="text-emerald-400 font-mono">
                                                     {Math.min(400, moleculeSettings.maxRenderSize ?? 320)}px
                                                 </span>
                                             </div>
@@ -203,7 +203,7 @@ export function SettingsModal() {
                                                         maxRenderSize: parseInt(e.target.value),
                                                     })
                                                 }
-                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                                className="w-full h-1.5 bg-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                                             />
                                         </div>
                                     </div>
@@ -213,7 +213,7 @@ export function SettingsModal() {
                                             onClick={() => updateMoleculeSettings({ terminalCarbons: !moleculeSettings.terminalCarbons })}
                                             className={`p-2.5 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${
                                                 moleculeSettings.terminalCarbons 
-                                                ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
+                                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
                                                 : 'bg-white/5 border-white/5 text-zinc-500 hover:text-zinc-400'
                                             }`}
                                         >
@@ -223,7 +223,7 @@ export function SettingsModal() {
                                             onClick={() => updateMoleculeSettings({ explicitHydrogens: !moleculeSettings.explicitHydrogens })}
                                             className={`p-2.5 rounded-xl border transition-all text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${
                                                 moleculeSettings.explicitHydrogens 
-                                                ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
+                                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
                                                 : 'bg-white/5 border-white/5 text-zinc-500 hover:text-zinc-400'
                                             }`}
                                         >
@@ -253,7 +253,7 @@ export function SettingsModal() {
                                     </div>
                                     <button
                                         onClick={() => setIsDensityModalOpen(true)}
-                                        className="shrink-0 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all text-xs font-bold uppercase tracking-wider"
+                                        className="shrink-0 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all text-xs font-bold uppercase tracking-wider"
                                     >
                                         Manage
                                     </button>
@@ -300,7 +300,7 @@ export function SettingsModal() {
                                 <div className="glass-card p-6 border-white/5">
                                     <div className="flex items-center justify-between mb-4">
                                         <span className="text-sm font-medium text-zinc-400">Version</span>
-                                        <span className="text-xs font-mono bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded-md border border-indigo-500/20">v{APP_VERSION}</span>
+                                        <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded-md border border-emerald-500/20">v{APP_VERSION}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm font-medium text-zinc-400">Build ID</span>
@@ -332,8 +332,8 @@ export function SettingsModal() {
                             <div className="relative w-full max-w-2xl bg-[#0b0b0d] border border-white/10 rounded-2xl shadow-2xl max-h-[85vh] overflow-hidden flex flex-col">
                                 <div className="px-5 py-4 border-b border-white/10 bg-white/[0.02] flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <FlaskConical className="h-4 w-4 text-cyan-300" />
-                                        <h4 className="text-sm font-bold uppercase tracking-wider text-cyan-300">Liquid Density Manager</h4>
+                                        <FlaskConical className="h-4 w-4 text-emerald-300" />
+                                        <h4 className="text-sm font-bold uppercase tracking-wider text-emerald-300">Liquid Density Manager</h4>
                                     </div>
                                     <button
                                         onClick={() => setIsDensityModalOpen(false)}
@@ -364,7 +364,7 @@ export function SettingsModal() {
                                             <button
                                                 onClick={() => void handleDensityLookup()}
                                                 disabled={isDensityLookupLoading || !densityQuery.trim()}
-                                                className="px-3 py-2 rounded-xl bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                                className="px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                                 aria-label="Search PubChem"
                                             >
                                                 {isDensityLookupLoading ? (
@@ -376,9 +376,9 @@ export function SettingsModal() {
                                         </div>
 
                                         {lookupResult && (
-                                            <div className="grid sm:grid-cols-[1fr_auto] gap-3 border border-cyan-500/20 bg-cyan-500/5 rounded-xl p-3">
+                                            <div className="grid sm:grid-cols-[1fr_auto] gap-3 border border-emerald-500/20 bg-emerald-500/5 rounded-xl p-3">
                                                 <div className="text-xs space-y-1">
-                                                    <p className="text-cyan-200 font-semibold">{lookupResult.name}</p>
+                                                    <p className="text-emerald-200 font-semibold">{lookupResult.name}</p>
                                                     <p className="text-zinc-400">
                                                         CID: <span className="text-zinc-300 font-mono">{lookupResult.cid}</span>
                                                         {lookupResult.formula ? (
@@ -400,7 +400,7 @@ export function SettingsModal() {
                                                     <button
                                                         onClick={handleSaveLookupEntry}
                                                         disabled={!densityInput.trim()}
-                                                        className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-xs font-bold uppercase tracking-wider"
+                                                        className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-xs font-bold uppercase tracking-wider"
                                                     >
                                                         <Plus className="h-3.5 w-3.5" />
                                                         Save

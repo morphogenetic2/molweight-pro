@@ -16,7 +16,7 @@ export function FormulaBadge({ formula, className }: FormulaBadgeProps) {
 
     return (
         <span className={cn(
-            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
+            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
             className
         )}>
             {parts.map((part, i) => {

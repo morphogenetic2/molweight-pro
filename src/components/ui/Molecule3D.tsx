@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "@/lib/icons";
 
 interface Molecule3DProps {
     cid: number;
@@ -112,7 +112,7 @@ export default function Molecule3D({ cid }: Molecule3DProps) {
         <div className="w-full h-full relative min-h-[300px] rounded-xl overflow-hidden bg-black/10 border border-white/5 backdrop-blur-sm">
             {loading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10">
-                    <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+                    <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
                 </div>
             )}
             <div ref={containerRef} className="w-full h-full min-h-[300px]" />

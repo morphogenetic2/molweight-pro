@@ -46,7 +46,7 @@ export const useStore = create<AppState>()(
         }),
         {
             name: "molweight-storage-v2",
-            version: 6,
+            version: 7,
             migrate: (persistedState: unknown) => {
                 const state = (typeof persistedState === "object" && persistedState !== null
                     ? { ...(persistedState as Record<string, unknown>) }
@@ -216,7 +216,6 @@ export const useStore = create<AppState>()(
                 };
 
                 const allowedTabs = new Set([
-                    "home",
                     "mw",
                     "dilution",
                     "serial_dilution",
@@ -226,11 +225,13 @@ export const useStore = create<AppState>()(
                     "help",
                     "stocks",
                 ]);
-                const rawActiveTab = state.activeTab;
+                const rawActiveTab = (state as Record<string, unknown>).activeTab;
                 state.activeTab =
                     typeof rawActiveTab === "string" && allowedTabs.has(rawActiveTab)
-                        ? rawActiveTab
-                        : "home";
+                        ? (rawActiveTab as AppState["activeTab"])
+                        : rawActiveTab === "home"
+                            ? "mw"
+                            : "mw";
 
                 const rawLiquidDensities: unknown[] = Array.isArray(
                     (state as Record<string, unknown>).liquidDensities

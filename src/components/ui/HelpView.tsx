@@ -8,7 +8,7 @@ import {
     FlaskConical,
     BookOpen,
     Beaker
-} from "lucide-react";
+} from "@/lib/icons";
 import 'katex/dist/katex.min.css';
 import { BlockMath } from 'react-katex';
 
@@ -24,7 +24,7 @@ export function HelpView() {
                     </p>
                     <ul className="list-disc pl-5 space-y-2">
                         <li>
-                            <strong className="text-white">Chemical Formulas:</strong> Type standard formulas like <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">H2SO4</code> or <code className="bg-white/10 px-1 py-0.5 rounded text-indigo-300">CuSO4·5H2O</code>. You can use * and . to indicate hydration states.
+                            <strong className="text-white">Chemical Formulas:</strong> Type standard formulas like <code className="bg-white/10 px-1 py-0.5 rounded text-emerald-300">H2SO4</code> or <code className="bg-white/10 px-1 py-0.5 rounded text-emerald-300">CuSO4·5H2O</code>. You can use * and . to indicate hydration states.
                         </li>
                         <li>
                             <strong className="text-white">Common Names:</strong> Type a name like &quot;aspirin&quot; or &quot;ethanol&quot;. The app uses PubChem to find the structure and weight.
@@ -88,7 +88,7 @@ export function HelpView() {
                 <div className="space-y-4 text-zinc-300">
                     <div>
                         Solve for any variable in the relationship:
-                        <div className="mt-2 text-indigo-300">
+                        <div className="mt-2 text-emerald-300">
                             <BlockMath math="\text{Mass} = \text{Concentration} \times \text{Volume} \times \text{MW}" />
                         </div>
                     </div>
@@ -183,7 +183,7 @@ export function HelpView() {
             >
                 <div className="p-6 sm:p-8 rounded-3xl bg-white/5 border border-white/5 backdrop-blur-sm">
                     <div className="flex items-start gap-6">
-                        <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hidden sm:block">
+                        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hidden sm:block">
                             <BookOpen className="h-8 w-8" />
                         </div>
                         <div>
@@ -208,7 +208,7 @@ export function HelpView() {
                                 className="p-6 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/[0.07] transition-colors"
                             >
                                 <div className="flex items-center gap-3 mb-4">
-                                    <div className="p-2 rounded-lg bg-zinc-800 text-indigo-400">
+                                    <div className="p-2 rounded-lg bg-zinc-800 text-emerald-400">
                                         <Icon className="h-5 w-5" />
                                     </div>
                                     <h3 className="text-lg font-bold text-white">{section.title}</h3>
@@ -221,9 +221,9 @@ export function HelpView() {
                     })}
                 </div>
 
-                <div className="p-6 rounded-2xl bg-indigo-900/20 border border-indigo-500/20">
+                <div className="p-6 rounded-2xl bg-emerald-900/20 border border-emerald-500/20">
                     <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                        <FlaskConical className="h-5 w-5 text-indigo-400" />
+                        <FlaskConical className="h-5 w-5 text-emerald-400" />
                         Pro Tip
                     </h3>
                     <p className="text-zinc-300">
