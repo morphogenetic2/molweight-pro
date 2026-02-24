@@ -372,7 +372,7 @@ const PTABLE: Record<string, number> = {
 
 ### PubChem REST API
 
-**Base URL:** `https://pubchem.ncbi.nlm.nih.gov/rest/pug`
+**Base URL:** `https://pubchem.ncbi.nlm.nih.gov/rest/pug` 
 
 **Endpoints Used:**
 
