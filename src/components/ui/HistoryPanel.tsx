@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore } from "@/store/useStore";
-import { X, Clock, ChevronRight } from "lucide-react";
+import { X, Clock, ChevronRight } from "@/lib/icons";
 import { motion } from "framer-motion";
 import { FormulaBadge } from "../ui/FormulaBadge";
 
@@ -32,7 +32,7 @@ export function HistoryPanel() {
             >
                 <div className="h-16 sm:h-20 flex items-center justify-between px-6 sm:px-8 border-b border-white/5">
                     <div className="flex items-center gap-3">
-                        <HistoryIcon className="h-5 w-5 text-indigo-400" />
+                        <HistoryIcon className="h-5 w-5 text-emerald-400" />
                         <h2 className="text-base sm:text-lg font-bold italic tracking-tight">History</h2>
                     </div>
                     <button
@@ -61,7 +61,7 @@ export function HistoryPanel() {
                                     setActiveTab("mw");
                                     setIsHistoryOpen(false);
                                 }}
-                                className="w-full text-left group glass-card p-4 border-white/5 hover:border-indigo-500/30 transition-all hover:bg-indigo-500/5"
+                                className="w-full text-left group glass-card p-4 border-white/5 hover:border-emerald-500/30 transition-all hover:bg-emerald-500/5"
                             >
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="text-sm font-bold truncate pr-4 text-zinc-300 group-hover:text-white transition-colors">
@@ -75,11 +75,11 @@ export function HistoryPanel() {
                                 <div className="flex items-end justify-between">
                                     <div className="flex flex-col gap-2">
                                         <FormulaBadge formula={item.formula} className="self-start" />
-                                        <span className="text-xs font-mono text-indigo-400/80 font-bold">
+                                        <span className="text-xs font-mono text-emerald-400/80 font-bold">
                                             {item.mw.toFixed(3)} g/mol
                                         </span>
                                     </div>
-                                    <ChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
+                                    <ChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
                                 </div>
                             </button>
                         ))

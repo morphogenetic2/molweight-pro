@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useStore } from "@/store/useStore";
 import type { AdjustmentStock } from "@/store/storeTypes";
-import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings2, Save } from "lucide-react";
+import { FlaskConical, Calculator, Scale, Droplets, Info, Plus, Trash2, Settings2, Save } from "@/lib/icons";
 import { formatMass, formatVolume } from "@/lib/parser";
 import { motion, AnimatePresence } from "framer-motion";
 import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
@@ -328,7 +328,7 @@ export default function BufferCalculator() {
                 {/* Main Inputs */}
                 <div className="md:col-span-8 glass-card space-y-6">
                     <div className="flex items-center gap-3 border-b border-white/5 pb-4 mb-4">
-                        <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                        <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
                             <Calculator className="h-5 w-5" />
                         </div>
                         <h2 className="text-lg font-bold text-zinc-100">Configuration</h2>
@@ -341,7 +341,7 @@ export default function BufferCalculator() {
                             <select
                                 value={selectedBufferId}
                                 onChange={(e) => setSelectedBufferId(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 hover:bg-white/10 transition-colors"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 hover:bg-white/10 transition-colors"
                             >
                                 {BUFFER_SYSTEMS.map(b => (
                                     <option key={b.id} value={b.id}>{b.name}</option>
@@ -358,13 +358,13 @@ export default function BufferCalculator() {
                             <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
                                 <button
                                     onClick={() => setMethod("titration")}
-                                    className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${method === "titration" ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "text-zinc-500 hover:text-zinc-300"}`}
+                                    className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${method === "titration" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-zinc-500 hover:text-zinc-300"}`}
                                 >
                                     Titration
                                 </button>
                                 <button
                                     onClick={() => setMethod("salt_mix")}
-                                    className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${method === "salt_mix" ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/20" : "text-zinc-500 hover:text-zinc-300"}`}
+                                    className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${method === "salt_mix" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-zinc-500 hover:text-zinc-300"}`}
                                 >
                                     Salt Mix
                                 </button>
@@ -382,7 +382,7 @@ export default function BufferCalculator() {
                                     max="14"
                                     value={targetPH}
                                     onChange={(e) => setTargetPH(parseFloat(e.target.value) || 0)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                                 />
                             </div>
                             {(targetPH < buffer.pKa - 1.5 || targetPH > buffer.pKa + 1.5) && (
@@ -474,14 +474,14 @@ export default function BufferCalculator() {
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
                                     <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Adjust With</label>
-                                    <button onClick={() => setIsStocksConfigOpen(true)} className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                                    <button onClick={() => setIsStocksConfigOpen(true)} className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
                                         <Settings2 className="h-3 w-3" /> Config
                                     </button>
                                 </div>
                                 <select
                                     value={selectedStockId}
                                     onChange={(e) => setSelectedStockId(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                                 >
                                     {adjustmentStocks.filter(s => {
                                         // Only show stocks that are compatible with available buffer forms
@@ -557,7 +557,7 @@ export default function BufferCalculator() {
                                                         <div className="mt-1 h-5 w-5 shrink-0 rounded-full border border-zinc-700 bg-white/5 flex items-center justify-center text-xs text-zinc-500 font-mono">3</div>
                                                         <div>
                                                             <p className="text-sm text-zinc-300">Adjust pH to <span className="text-white font-bold">{targetPH}</span> using</p>
-                                                            <p className="text-sm font-medium text-indigo-400">~{formatVolume(result.adjuster!.vol)} of {result.adjuster!.concName}</p>
+                                                            <p className="text-sm font-medium text-emerald-400">~{formatVolume(result.adjuster!.vol)} of {result.adjuster!.concName}</p>
                                                         </div>
                                                     </div>
                                                 </>
@@ -599,7 +599,7 @@ export default function BufferCalculator() {
 
                                         <button
                                             onClick={handleExportToBuilder}
-                                            className="w-full py-3 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-xl text-indigo-400 font-bold flex items-center justify-center gap-2"
+                                            className="w-full py-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl text-emerald-400 font-bold flex items-center justify-center gap-2"
                                         >
                                             <FlaskConical className="h-4 w-4" />
                                             Export to Recipe Builder
@@ -680,12 +680,12 @@ export default function BufferCalculator() {
                                                             // Toggle Acid/Base
                                                             updateAdjustmentStock(stock.id, { type: stock.type === 'acid' ? 'base' : 'acid' });
                                                         }}
-                                                        className={`p-2 rounded-lg transition-colors ${stock.type === 'acid' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}
+                                                        className={`p-2 rounded-lg transition-colors ${stock.type === 'acid' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'}`}
                                                         title="Click to toggle Acid/Base"
                                                     >
                                                         <Droplets className="h-4 w-4" />
                                                     </button>
-                                                    <span className={`text-[10px] font-bold uppercase ${stock.type === 'acid' ? 'text-orange-400' : 'text-blue-400'}`}>
+                                                    <span className={`text-[10px] font-bold uppercase ${stock.type === 'acid' ? 'text-orange-400' : 'text-emerald-400'}`}>
                                                         {stock.type}
                                                     </span>
                                                 </div>

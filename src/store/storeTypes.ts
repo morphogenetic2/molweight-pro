@@ -2,7 +2,6 @@ import { ChemicalData } from "@/lib/parser";
 import { Recipe } from "@/lib/recipes";
 
 export type ActiveTab =
-    | "home"
     | "mw"
     | "dilution"
     | "serial_dilution"

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useStore } from "@/store/useStore";
-import { Search, Loader2, Scale, Beaker, Pipette, Atom, ArrowRightLeft, Lock } from "lucide-react";
+import { Search, Loader2, Scale, Beaker, Pipette, Atom, ArrowRightLeft, Lock } from "@/lib/icons";
 import { lookupPubChem } from "@/lib/api";
 import { tryCalculateMw } from "@/lib/parser";
 import { FormulaBadge } from "../ui/FormulaBadge";
@@ -226,7 +226,7 @@ export default function MolarityCalculator() {
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
             <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
+                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-emerald-400">
                     Molarity Calculator
                 </h2>
                 <p className="text-xs text-zinc-500">Tip: you can type values like <span className="font-mono text-zinc-400">10 mM</span> or <span className="font-mono text-zinc-400">500 mL</span>.</p>
@@ -240,7 +240,7 @@ export default function MolarityCalculator() {
                         <button
                             onClick={() => searchTerm && window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(searchTerm)}`, '_blank')}
                             aria-label="View search on PubChem"
-                            className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 transition-colors"
+                            className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors"
                         >
                             <Search className="h-4 w-4" />
                         </button>
@@ -260,7 +260,7 @@ export default function MolarityCalculator() {
                         <div className="mt-2 ml-[44px] animate-in fade-in slide-in-from-top-1 duration-300">
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-white/10 shadow-xl backdrop-blur-sm">
                                 <FormulaBadge formula={lookupResult.formula} className="text-[10px]" />
-                                <span className="text-[10px] font-mono text-indigo-400">{molarityState.mw} g/mol</span>
+                                <span className="text-[10px] font-mono text-emerald-400">{molarityState.mw} g/mol</span>
                             </div>
                         </div>
                     )}

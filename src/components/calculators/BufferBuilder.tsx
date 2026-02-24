@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
 import type { Solute, LiquidDensityEntry } from "@/store/storeTypes";
-import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker, Printer } from "lucide-react";
+import { Trash2, Plus, Search, Loader2, Book, Save, Square, CheckSquare, Beaker, Printer } from "@/lib/icons";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { formatMass, formatVolume, formatConcentration, getUnitLabel, tryCalculateMw } from "@/lib/parser";
 import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
@@ -249,7 +249,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                                     onClick={handleExternalLookup}
                                     title="View on PubChem"
                                     aria-label="View on PubChem"
-                                    className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all text-xs"
+                                    className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all text-xs"
                                 >
                                     <Search className="h-3.5 w-3.5" />
                                 </button>
@@ -260,7 +260,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                                                 Stock
                                             </span>
                                             {solute.stockConc && (
-                                                <span className="shrink-0 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold tracking-wider text-indigo-400">
+                                                <span className="shrink-0 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold tracking-wider text-emerald-400">
                                                     {formatConcentration(solute.stockConc, solute.stockUnit || "")} {getUnitLabel(solute.stockUnit || "")}
                                                 </span>
                                             )}
@@ -274,7 +274,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                                             placeholder="Name/Formula"
                                             value={solute.name}
                                             onChange={(e) => updateSolute(solute.id, { name: e.target.value })}
-                                            className="flex-1 bg-transparent border-transparent p-0 focus:ring-0 focus:border-indigo-500/50 text-sm"
+                                            className="flex-1 bg-transparent border-transparent p-0 focus:ring-0 focus:border-emerald-500/50 text-sm"
                                         />
                                     )}
                                     {isSearching && (
@@ -370,7 +370,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                         )}
                     </div>
                 </td>
-                <td className="px-6 py-4 text-right font-mono font-bold text-indigo-400 text-lg align-top">
+                <td className="px-6 py-4 text-right font-mono font-bold text-emerald-400 text-lg align-top">
                     <span>{amountWithVolume}</span>
                 </td>
                 <td className="px-6 py-4 align-top">
@@ -413,7 +413,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
                                     type="text"
                                     value={solute.name}
                                     onChange={(e) => updateSolute(solute.id, { name: e.target.value })}
-                                    className="w-full bg-transparent border-b border-white/10 p-0 text-sm focus:border-indigo-500/50"
+                                    className="w-full bg-transparent border-b border-white/10 p-0 text-sm focus:border-emerald-500/50"
                                     placeholder="Name/Formula"
                                 />
                             )}
@@ -499,7 +499,7 @@ function SoluteRow({ solute, isChecklist, onToggleCheck, view = 'table' }: { sol
 
             <div className="pl-8 pt-2 flex items-center justify-between border-t border-white/5 mt-2">
                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Amount Required</span>
-                <span className="font-mono font-bold text-indigo-400 text-base">{amountWithVolume}</span>
+                <span className="font-mono font-bold text-emerald-400 text-base">{amountWithVolume}</span>
             </div>
         </div>
     );
@@ -715,7 +715,7 @@ export default function BufferBuilder() {
                     </button>
                     <button
                         onClick={() => setIsRecipeLibraryOpen(true)}
-                        className="p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold"
+                        className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold"
                         title="Browse Recipes"
                     >
                         <Book className="h-4 w-4" />
@@ -736,7 +736,7 @@ export default function BufferBuilder() {
                             setIsExportModalOpen(true);
                         }}
                         disabled={solutes.length === 0}
-                        className="p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Export to PDF"
                     >
                         <Printer className="h-4 w-4" />
@@ -805,7 +805,7 @@ export default function BufferBuilder() {
                     <div className="relative">
                         <button
                             onClick={() => setIsStockSelectOpen(!isStockSelectOpen)}
-                            className="w-full py-4 hover:bg-white/[0.03] transition-colors text-indigo-400 font-medium flex items-center justify-center gap-2 text-sm"
+                            className="w-full py-4 hover:bg-white/[0.03] transition-colors text-emerald-400 font-medium flex items-center justify-center gap-2 text-sm"
                         >
                             <Beaker className="h-4 w-4" />
                             From Stock
@@ -887,7 +887,7 @@ export default function BufferBuilder() {
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsExportModalOpen(false)} />
                     <div className="relative glass-card !p-6 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">
+                            <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/20">
                                 <Printer className="h-6 w-6" />
                             </div>
                             <div>
@@ -911,7 +911,7 @@ export default function BufferBuilder() {
                                             setIsExportModalOpen(false);
                                         }
                                     }}
-                                    className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-xl px-4 py-3 outline-none transition-all text-white placeholder:text-white/10"
+                                    className="w-full bg-white/5 border border-white/10 focus:border-emerald-500/50 rounded-xl px-4 py-3 outline-none transition-all text-white placeholder:text-white/10"
                                 />
                             </div>
 
@@ -927,7 +927,7 @@ export default function BufferBuilder() {
                                         handleExport(recipeExportName);
                                         setIsExportModalOpen(false);
                                     }}
-                                    className="flex-1 px-4 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all text-sm font-bold shadow-lg shadow-indigo-500/20"
+                                    className="flex-1 px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-all text-sm font-bold shadow-lg shadow-emerald-500/20"
                                 >
                                     Export PDF
                                 </button>

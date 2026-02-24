@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useStore } from "@/store/useStore";
 import type { Stock } from "@/store/storeTypes";
-import { Plus, Trash2, FileSpreadsheet, Save, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, FileSpreadsheet, Save, AlertTriangle } from "@/lib/icons";
 import { lookupPubChem } from "@/lib/api";
 import { FormulaBadge } from "../ui/FormulaBadge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -235,7 +235,7 @@ export function StockManager() {
                                     {livePreview?.formula && (
                                         <div className="flex items-center gap-2 mt-2 animate-in fade-in slide-in-from-top-1 duration-300">
                                             <FormulaBadge formula={livePreview.formula} className="text-[10px]" />
-                                            <span className="text-[10px] font-mono text-indigo-400">{livePreview.mw} g/mol</span>
+                                            <span className="text-[10px] font-mono text-emerald-400">{livePreview.mw} g/mol</span>
                                         </div>
                                     )}
                                 </div>

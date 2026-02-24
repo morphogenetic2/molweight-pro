@@ -2,7 +2,7 @@
 
 import React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Info } from "@/lib/icons";
 import { useToastStore } from "@/store/useToastStore";
 import type { ToastTone } from "@/store/useToastStore";
 
@@ -18,8 +18,8 @@ const toneStyles: Record<ToastTone, { bg: string; text: string; icon: React.JSX.
         icon: <AlertTriangle className="h-4 w-4" />
     },
     info: {
-        bg: "bg-indigo-500/15 border-indigo-500/30",
-        text: "text-indigo-300",
+        bg: "bg-emerald-500/15 border-emerald-500/30",
+        text: "text-emerald-300",
         icon: <Info className="h-4 w-4" />
     }
 };

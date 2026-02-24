@@ -2,7 +2,7 @@ import { useStore } from "@/store/useStore";
 import { formatVolume, formatConcentration, getUnitLabel, tryCalculateMw } from "@/lib/parser";
 import { convertUnitValue, parseValueWithUnit } from "@/lib/chemistry/units";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "lucide-react";
+import { Search, Loader2, Info, Plus, Check, ArrowRightLeft, Beaker } from "@/lib/icons";
 import { lookupPubChem } from "@/lib/api";
 import { useState, useEffect } from "react";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -319,7 +319,7 @@ export default function DilutionCalculator() {
                                 type="button"
                                 onClick={handleExternalLookup}
                                 title="View on PubChem"
-                                className="shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
+                                className="shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all"
                             >
                                 <Search className="h-4 w-4" />
                             </button>
@@ -327,13 +327,13 @@ export default function DilutionCalculator() {
                                 <input
                                     type="text"
                                     placeholder="Chemical Name or Formula"
-                                    className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none text-sm"
+                                    className="w-full bg-white/5 border border-white/10 focus:border-emerald-500/50 rounded-lg px-3 py-2 transition-all outline-none text-sm"
                                     value={dilution.name}
                                     onChange={(e) => setDilution({ name: e.target.value })}
                                 />
                                 {isSearching && (
                                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                                        <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
                                     </div>
                                 )}
                             </div>
@@ -342,7 +342,7 @@ export default function DilutionCalculator() {
                             <div className="animate-in fade-in slide-in-from-top-1 duration-300">
                                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-white/10 shadow-xl backdrop-blur-sm ml-[44px] sm:ml-[48px]">
                                     <FormulaBadge formula={liveFormula} className="text-[10px]" />
-                                    <span className="text-[10px] font-mono text-indigo-400">{liveMW} g/mol</span>
+                                    <span className="text-[10px] font-mono text-emerald-400">{liveMW} g/mol</span>
                                 </div>
                             </div>
                         )}
@@ -393,12 +393,12 @@ export default function DilutionCalculator() {
                 {/* Stock Solution */}
                 <section className="glass-card">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-base sm:text-lg font-semibold text-indigo-400">Stock Solution (C<sub>1</sub>)</h3>
+                        <h3 className="text-base sm:text-lg font-semibold text-emerald-400">Stock Solution (C<sub>1</sub>)</h3>
                         <div className="relative">
                             <button
                                 onClick={() => setIsStockSelectOpen(!isStockSelectOpen)}
                                 aria-label="Select stock from database"
-                                className="text-[10px] flex items-center gap-1.5 px-2 py-1 rounded bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-all border border-indigo-500/20"
+                                className="text-[10px] flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
                             >
                                 <Beaker className="h-3 w-3" />
                                 From Database
@@ -460,7 +460,7 @@ export default function DilutionCalculator() {
                 </section>
 
                 {/* Target Solution */}
-                <section className="glass-card border-indigo-500/20">
+                <section className="glass-card border-emerald-500/20">
                     <h3 className="text-base sm:text-lg font-semibold mb-4 text-emerald-400">Target Solution (C<sub>2</sub>, V<sub>2</sub>)</h3>
                     <div className="space-y-4">
                         <div className="flex gap-2">
@@ -559,8 +559,8 @@ export default function DilutionCalculator() {
                                 className={`text-[10px] sm:text-xs py-2 px-3 border rounded-lg transition-all flex items-center justify-center sm:justify-start gap-2 ${buttonState === "added"
                                     ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
                                     : buttonState === "update"
-                                        ? 'bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30'
-                                        : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/20 text-indigo-400 hover:text-indigo-300'
+                                        ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                                        : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/20 text-emerald-400 hover:text-emerald-300'
                                     }`}
                             >
                                 {buttonState === "added" && (
@@ -601,12 +601,12 @@ export default function DilutionCalculator() {
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="glass-card overflow-hidden border-indigo-500/30 !p-0"
+                        className="glass-card overflow-hidden border-emerald-500/30 !p-0"
                     >
                         <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/5">
                             <div className="p-6 sm:p-8 text-center">
                                 <p className="text-zinc-500 text-[10px] sm:text-sm uppercase tracking-widest font-bold mb-2">Volume of Stock (V1)</p>
-                                <p className="text-3xl sm:text-4xl font-black text-indigo-400 font-mono">
+                                <p className="text-3xl sm:text-4xl font-black text-emerald-400 font-mono">
                                     {formatVolume(results.v1)}
                                 </p>
                             </div>

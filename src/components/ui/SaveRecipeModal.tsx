@@ -2,7 +2,7 @@
 
 import { useStore } from "@/store/useStore";
 import { useState } from "react";
-import { X, Save, FileText, ChevronRight } from "lucide-react";
+import { X, Save, FileText, ChevronRight } from "@/lib/icons";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToastStore } from "@/store/useToastStore";
 
@@ -42,7 +42,7 @@ export function SaveRecipeModal() {
                 >
                     <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
                         <div className="flex items-center gap-3">
-                            <Save className="h-5 w-5 text-indigo-400" />
+                            <Save className="h-5 w-5 text-emerald-400" />
                             <h2 className="text-lg sm:text-xl font-bold italic tracking-tight">Save Recipe</h2>
                         </div>
                         <button
@@ -66,7 +66,7 @@ export function SaveRecipeModal() {
                                     onChange={(e) => setName(e.target.value)}
                                     placeholder="e.g. My Custom PBS"
                                     autoFocus
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-all"
                                 />
                             </div>
 
@@ -79,7 +79,7 @@ export function SaveRecipeModal() {
                                     onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Add notes about this recipe..."
                                     rows={3}
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all resize-none"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-all resize-none"
                                 />
                             </div>
                         </div>
@@ -94,7 +94,7 @@ export function SaveRecipeModal() {
                         <button
                             onClick={handleSave}
                             disabled={!name.trim()}
-                            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-2xl text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 group"
+                            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-2xl text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 group"
                         >
                             Save Template
                             <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />

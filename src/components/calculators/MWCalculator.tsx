@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
-import { Search, Loader2, AlertCircle, Download } from "lucide-react";
+import { Search, Loader2, AlertCircle, Download } from "@/lib/icons";
 import { useStore } from "@/store/useStore";
 import { parseFormula, ChemicalData, normalizeFormula, tryCalculateMw } from "@/lib/parser";
 import { lookupPubChem, lookupPubChemByFormula } from "@/lib/api";
@@ -208,7 +208,7 @@ export default function MWCalculator() {
                                         window.open(`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(mwInput.trim())}`, "_blank");
                                     }
                                 }}
-                                className="shrink-0 p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all"
+                                className="shrink-0 p-2.5 rounded-lg bg-white/5 border border-white/10 text-zinc-500 hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all"
                             >
                                 <Search className="h-4 w-4" />
                             </button>
@@ -218,7 +218,7 @@ export default function MWCalculator() {
                                     value={mwInput}
                                     onChange={(e) => setMwInput(e.target.value)}
                                     placeholder="Enter formula or name..."
-                                    className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-lg px-3 py-2 transition-all outline-none text-sm sm:text-base"
+                                    className="w-full bg-white/5 border border-white/10 focus:border-emerald-500/50 rounded-lg px-3 py-2 transition-all outline-none text-sm sm:text-base"
                                 />
                             </div>
                         </div>
@@ -269,7 +269,7 @@ export default function MWCalculator() {
                                         onClick={() => setViewMode('2d')}
                                         className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
                                             viewMode === '2d' 
-                                            ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' 
+                                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25' 
                                             : 'text-zinc-400 hover:text-zinc-200'
                                         }`}
                                     >
@@ -279,7 +279,7 @@ export default function MWCalculator() {
                                         onClick={() => setViewMode('3d')}
                                         className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
                                             viewMode === '3d' 
-                                            ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' 
+                                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25' 
                                             : 'text-zinc-400 hover:text-zinc-200'
                                         }`}
                                     >
@@ -291,7 +291,7 @@ export default function MWCalculator() {
                                 {viewMode === '2d' && (
                                     <button
                                         onClick={() => handleDownloadImage(mwResult.cid!, mwResult.name || mwResult.formula)}
-                                        className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 text-zinc-400 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-indigo-500/5 transition-all opacity-0 group-hover:opacity-100 duration-300"
+                                        className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all opacity-0 group-hover:opacity-100 duration-300"
                                         title="Download structure image"
                                     >
                                         <Download className="h-4 w-4" />
@@ -307,7 +307,7 @@ export default function MWCalculator() {
                                         {/* Loading state for image file specifically */}
                                         {imageLoading && !isSearchingStructure && (
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                                <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+                                                <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
                                             </div>
                                         )}
 
@@ -326,7 +326,7 @@ export default function MWCalculator() {
                                             <div className="w-full h-full flex items-center justify-center relative">
                                                 {imageLoading && !isSearchingStructure && (
                                                     <div className="absolute inset-0 flex items-center justify-center bg-black/5 z-10">
-                                                        <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+                                                        <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
                                                     </div>
                                                 )}
                                                 <Image
@@ -355,7 +355,7 @@ export default function MWCalculator() {
                                 <div className="text-center text-zinc-500 italic text-sm px-4">
                                     {isSearchingStructure ? (
                                         <div className="flex flex-col items-center gap-3">
-                                            <Loader2 className="h-10 w-10 animate-spin text-indigo-500/50" />
+                                            <Loader2 className="h-10 w-10 animate-spin text-emerald-500/50" />
                                             <p className="animate-pulse">Fetching structure from PubChem...</p>
                                         </div>
                                     ) : (

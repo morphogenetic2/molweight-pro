@@ -17,7 +17,7 @@ export const DEFAULT_MOLECULE_SETTINGS: AppState["moleculeSettings"] = {
 };
 
 export const createUiSlice: StateCreator<AppState, [], [], UiSlice> = (set) => ({
-    activeTab: "home",
+    activeTab: "mw",
     setActiveTab: (tab) => set({ activeTab: tab }),
 
     isHistoryOpen: false,

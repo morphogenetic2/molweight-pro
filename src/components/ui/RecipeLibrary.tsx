@@ -2,7 +2,7 @@
 
 import { useStore } from "@/store/useStore";
 import { DEFAULT_RECIPES } from "@/lib/recipes";
-import { X, Book, Trash2, ChevronRight, Info } from "lucide-react";
+import { X, Book, Trash2, ChevronRight, Info } from "@/lib/icons";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function RecipeLibrary() {
@@ -37,7 +37,7 @@ export function RecipeLibrary() {
                 >
                     <div className="px-6 py-4 sm:px-8 sm:py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
                         <div className="flex items-center gap-3">
-                            <Book className="h-5 w-5 text-indigo-400" />
+                            <Book className="h-5 w-5 text-emerald-400" />
                             <h2 className="text-lg sm:text-xl font-bold italic tracking-tight">Recipe Library</h2>
                         </div>
                         <button
@@ -53,16 +53,16 @@ export function RecipeLibrary() {
                         {allRecipes.map((recipe) => (
                             <div
                                 key={recipe.id}
-                                className="group relative glass-card p-5 border-white/5 hover:border-indigo-500/30 transition-all flex flex-col justify-between"
+                                className="group relative glass-card p-5 border-white/5 hover:border-emerald-500/30 transition-all flex flex-col justify-between"
                             >
                                 <div>
                                     <div className="flex items-start justify-between mb-3">
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-sm font-bold text-white group-hover:text-indigo-400 transition-colors">
+                                            <span className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">
                                                 {recipe.name}
                                             </span>
                                             {recipe.isDefault && (
-                                                <span className="text-[10px] font-mono bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20 w-fit">
+                                                <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 w-fit">
                                                     STANDARD
                                                 </span>
                                             )}
@@ -103,7 +103,7 @@ export function RecipeLibrary() {
                                         loadRecipe(recipe);
                                         setIsRecipeLibraryOpen(false);
                                     }}
-                                    className="w-full py-2 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 rounded-xl text-xs font-bold text-indigo-400 transition-all flex items-center justify-center gap-2 group/btn"
+                                    className="w-full py-2 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 rounded-xl text-xs font-bold text-emerald-400 transition-all flex items-center justify-center gap-2 group/btn"
                                 >
                                     Load Recipe
                                     <ChevronRight className="h-3 w-3 group-hover/btn:translate-x-0.5 transition-transform" />

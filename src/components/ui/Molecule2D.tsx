@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import SmilesDrawer from "smiles-drawer";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "@/lib/icons";
 import { useStore } from "@/store/useStore";
 
 interface Molecule2DProps {
@@ -263,7 +263,7 @@ export default function Molecule2D({
         <div className="relative w-full h-full flex items-center justify-center min-h-[300px]">
             {loading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/10 z-10">
-                    <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+                    <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
                 </div>
             )}
             

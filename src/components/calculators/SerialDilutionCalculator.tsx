@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRightLeft, Copy, Download, ListChecks, Printer, WandSparkles } from "lucide-react";
+import { ArrowRightLeft, Copy, Download, ListChecks, Printer, WandSparkles } from "@/lib/icons";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useStore } from "@/store/useStore";
@@ -686,7 +686,7 @@ export default function SerialDilutionCalculator() {
     return (
         <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">
+                <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-emerald-400">
                     Serial Dilution Planner
                 </h2>
                 <p className="text-xs text-zinc-500">
@@ -701,7 +701,7 @@ export default function SerialDilutionCalculator() {
                             onClick={() => setSerialDilutionState({ mode: "auto" })}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                                 safeMode === "auto"
-                                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
                                     : "text-zinc-400 hover:text-zinc-200"
                             }`}
                         >
@@ -716,7 +716,7 @@ export default function SerialDilutionCalculator() {
                             }
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                                 safeMode === "custom"
-                                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/25"
+                                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
                                     : "text-zinc-400 hover:text-zinc-200"
                             }`}
                         >
@@ -729,7 +729,7 @@ export default function SerialDilutionCalculator() {
                             onClick={() => setSerialDilutionState({ seriesType: "dilution" })}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                                 safeSeriesType === "dilution"
-                                    ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/25"
+                                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
                                     : "text-zinc-400 hover:text-zinc-200"
                             }`}
                         >
@@ -739,7 +739,7 @@ export default function SerialDilutionCalculator() {
                             onClick={() => setSerialDilutionState({ seriesType: "concentration" })}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                                 safeSeriesType === "concentration"
-                                    ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/25"
+                                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
                                     : "text-zinc-400 hover:text-zinc-200"
                             }`}
                         >
@@ -836,7 +836,7 @@ export default function SerialDilutionCalculator() {
                                         step={1}
                                         value={safeReplicates}
                                         onChange={(e) => updateReplicates(e.target.value)}
-                                        className="w-[6ch] h-full text-center bg-transparent border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                        className="w-[6ch] h-full text-center bg-transparent border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-500/40"
                                     />
                                     <button
                                         type="button"
@@ -857,7 +857,7 @@ export default function SerialDilutionCalculator() {
                                             overagePercent: Number.parseInt(e.target.value, 10) || 0,
                                         })
                                     }
-                                    className="w-full h-12 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                    className="w-full h-12 bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-500/40"
                                 >
                                     <option value="0" className="bg-zinc-900">0%</option>
                                     <option value="5" className="bg-zinc-900">5%</option>
@@ -877,7 +877,7 @@ export default function SerialDilutionCalculator() {
                             <span
                                 className={`text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border ${
                                     serialDilutionState.includeBlank
-                                        ? "text-cyan-200 border-cyan-400/40 bg-cyan-500/20"
+                                        ? "text-emerald-200 border-emerald-400/40 bg-emerald-500/20"
                                         : "text-zinc-400 border-white/10 bg-white/5"
                                 }`}
                             >
@@ -907,7 +907,7 @@ export default function SerialDilutionCalculator() {
                                 onClick={() => setSerialDilutionState({ includeBlank: true })}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                                     serialDilutionState.includeBlank
-                                        ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/25"
+                                        ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/25"
                                         : "text-zinc-400 hover:text-zinc-200"
                                 }`}
                             >
@@ -928,7 +928,7 @@ export default function SerialDilutionCalculator() {
                                 value={serialDilutionState.autoDilutionFactor}
                                 onChange={(e) => setSerialDilutionState({ autoDilutionFactor: e.target.value })}
                                 placeholder="1:10"
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/40"
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-emerald-500/40"
                             />
                             <p className="text-[11px] text-zinc-500">
                                 Accepted formats: <span className="font-mono">1:10</span>, <span className="font-mono">x4</span>, <span className="font-mono">4</span>.
@@ -968,7 +968,7 @@ export default function SerialDilutionCalculator() {
                                         step={1}
                                         value={safeStepCount}
                                         onChange={(e) => updateStepCount(e.target.value)}
-                                        className="w-[6ch] h-full text-center bg-transparent border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                        className="w-[6ch] h-full text-center bg-transparent border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-500/40"
                                     />
                                     <button
                                         type="button"
@@ -984,7 +984,7 @@ export default function SerialDilutionCalculator() {
                                         type="button"
                                         onClick={handleFixStepCount}
                                         disabled={maxAutoConcentrationSteps === null}
-                                        className={`${maxAutoConcentrationSteps !== null && safeStepCount > maxAutoConcentrationSteps ? "fixme-breathe" : ""} inline-flex h-12 items-center gap-2 px-3 rounded-xl border border-indigo-400/30 bg-indigo-500/15 text-indigo-200 text-xs font-bold uppercase tracking-wider hover:bg-indigo-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        className={`${maxAutoConcentrationSteps !== null && safeStepCount > maxAutoConcentrationSteps ? "fixme-breathe" : ""} inline-flex h-12 items-center gap-2 px-3 rounded-xl border border-emerald-400/30 bg-emerald-500/15 text-emerald-200 text-xs font-bold uppercase tracking-wider hover:bg-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
                                     >
                                         <WandSparkles className="h-4 w-4" />
                                         Fix me!
@@ -1028,7 +1028,7 @@ export default function SerialDilutionCalculator() {
                                                 )
                                             );
                                         }}
-                                        className="w-[12ch] max-w-[12ch] bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-indigo-500/40"
+                                        className="w-[12ch] max-w-[12ch] bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-500/40"
                                     />
                                 </div>
                             ))}
@@ -1048,7 +1048,7 @@ export default function SerialDilutionCalculator() {
             <section className="glass-card p-4 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm sm:text-base font-bold text-zinc-200 flex items-center gap-2">
-                        <ListChecks className="h-4 w-4 text-indigo-400" />
+                        <ListChecks className="h-4 w-4 text-emerald-400" />
                         Step Plan
                     </h3>
                     <div className="flex items-center gap-2">
@@ -1091,7 +1091,7 @@ export default function SerialDilutionCalculator() {
                 ) : (
                     <>
                         {hasPreparation && (
-                            <div className="text-xs text-cyan-300 bg-cyan-500/10 border border-cyan-400/25 p-3 rounded-lg">
+                            <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-400/25 p-3 rounded-lg">
                                 Step 0 prepares Start from Stock (ratio = Stock/Start), independent of the auto dilution factor.
                             </div>
                         )}
@@ -1114,7 +1114,7 @@ export default function SerialDilutionCalculator() {
                                             key={row.key}
                                             className={`border-t ${
                                                 row.isPreparation
-                                                    ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-100"
+                                                    ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"
                                                     : "border-white/5 text-zinc-300"
                                             }`}
                                         >
@@ -1122,13 +1122,13 @@ export default function SerialDilutionCalculator() {
                                                 <div className="flex items-center gap-2">
                                                     <span>{row.stepLabel}</span>
                                                     {row.isPreparation && (
-                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-md border border-cyan-300/40 bg-cyan-500/20 text-cyan-100 uppercase tracking-wide">
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-md border border-emerald-300/40 bg-emerald-500/20 text-emerald-100 uppercase tracking-wide">
                                                             PRE-DILUTION
                                                         </span>
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className={`px-3 py-2 font-mono ${row.isPreparation ? "text-cyan-200" : "text-indigo-400"}`}>
+                                            <td className={`px-3 py-2 font-mono ${row.isPreparation ? "text-emerald-200" : "text-emerald-400"}`}>
                                                 {row.ratio}
                                             </td>
                                             <td className="px-3 py-2 font-mono">
@@ -1188,7 +1188,7 @@ export default function SerialDilutionCalculator() {
             </section>
 
             <section className="glass-card p-4 sm:p-5 text-xs text-zinc-500 flex items-start gap-3">
-                <ArrowRightLeft className="h-4 w-4 text-indigo-400 mt-0.5 shrink-0" />
+                <ArrowRightLeft className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
                 <p>
                     This planner assumes each dilution step is prepared from the previous concentration at a constant
                     final volume. Custom mode lets you define every step directly.
@@ -1203,7 +1203,7 @@ export default function SerialDilutionCalculator() {
                     />
                     <div className="relative glass-card !p-6 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">
+                            <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/20">
                                 <Printer className="h-6 w-6" />
                             </div>
                             <div>
@@ -1227,7 +1227,7 @@ export default function SerialDilutionCalculator() {
                                             setIsPrintModalOpen(false);
                                         }
                                     }}
-                                    className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 rounded-xl px-4 py-3 outline-none transition-all text-white placeholder:text-white/30"
+                                    className="w-full bg-white/5 border border-white/10 focus:border-emerald-500/50 rounded-xl px-4 py-3 outline-none transition-all text-white placeholder:text-white/30"
                                 />
                             </div>
 
@@ -1243,7 +1243,7 @@ export default function SerialDilutionCalculator() {
                                         handlePrintInstructions(instructionsExportName);
                                         setIsPrintModalOpen(false);
                                     }}
-                                    className="flex-1 px-4 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-all text-sm font-bold shadow-lg shadow-indigo-500/20"
+                                    className="flex-1 px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-all text-sm font-bold shadow-lg shadow-emerald-500/20"
                                 >
                                     Print PDF
                                 </button>

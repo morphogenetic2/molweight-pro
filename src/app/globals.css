@@ -6,80 +6,90 @@
 }
 
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --surface: rgba(30, 30, 30, 0.6);
-  --glass: rgba(255, 255, 255, 0.05);
+  --background: #121417;
+  --foreground: #e5e7eb;
+  --primary: #10b981;
+  --primary-hover: #34d399;
+  --surface: rgba(24, 27, 31, 0.72);
+  --glass: rgba(255, 255, 255, 0.04);
   --glass-border: rgba(255, 255, 255, 0.1);
 }
 
-
 body {
-  background: var(--background);
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.16), transparent 38%),
+    radial-gradient(circle at 100% 20%, rgba(16, 185, 129, 0.08), transparent 34%),
+    var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-geist), sans-serif;
 }
 
 @utility glass {
-  background: var(--glass);
-  backdrop-filter: blur(12px);
+  background: var(--surface);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 20px 44px -30px rgba(9, 12, 14, 0.9);
 }
 
 .glass-card {
-  @apply glass rounded-2xl p-6 transition-all duration-300;
+  @apply glass rounded-3xl p-6 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)];
 }
 
 .glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(24, 27, 31, 0.86);
 }
 
 input,
 select {
-  @apply bg-white/5 border border-white/10 rounded-lg px-3 py-2 outline-hidden focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all;
+  @apply rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-zinc-100 outline-hidden transition-all;
+  @apply focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-400/15;
 }
 
 option {
-  @apply bg-[#292929] text-white;
+  @apply bg-zinc-900 text-zinc-100;
 }
 
-/* Hide number input arrows (spin buttons) */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-input[type=number] {
+input[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;
 }
 
 button.primary {
-  @apply bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 font-medium transition-all active:scale-95;
+  @apply rounded-xl border border-emerald-400/30 bg-emerald-500 px-4 py-2 font-medium text-zinc-950;
+  @apply transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-emerald-400;
+  @apply active:translate-y-[1px] active:scale-[0.98];
 }
 
 button.secondary {
-  @apply bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-4 py-2 font-medium transition-all active:scale-95;
+  @apply rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-medium;
+  @apply transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-white/10;
+  @apply active:translate-y-[1px] active:scale-[0.98];
 }
 
 @keyframes fixme-breathe {
-  0%, 100% {
-    border-color: rgba(129, 140, 248, 0.35);
+  0%,
+  100% {
+    border-color: rgba(16, 185, 129, 0.36);
     box-shadow:
-      0 0 0 0 rgba(99, 102, 241, 0.0),
-      0 0 0 1px rgba(99, 102, 241, 0.12) inset;
+      0 0 0 0 rgba(16, 185, 129, 0),
+      0 0 0 1px rgba(16, 185, 129, 0.15) inset;
   }
   50% {
-    border-color: rgba(99, 102, 241, 0.8);
+    border-color: rgba(16, 185, 129, 0.82);
     box-shadow:
-      0 0 0 2px rgba(99, 102, 241, 0.2),
-      0 0 24px 2px rgba(99, 102, 241, 0.28),
-      0 0 0 1px rgba(129, 140, 248, 0.35) inset;
+      0 0 0 2px rgba(16, 185, 129, 0.2),
+      0 0 22px 2px rgba(16, 185, 129, 0.24),
+      0 0 0 1px rgba(52, 211, 153, 0.35) inset;
   }
 }
 
@@ -93,20 +103,19 @@ button.secondary {
   }
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 9px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.16);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.24);
 }
